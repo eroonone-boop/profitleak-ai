@@ -74,6 +74,10 @@ and two buttons: **Get Started** and **Try Demo Data**.
 - An empty dashboard shows: “No products yet. Add your first product or try the demo.”
 - The welcome appears only once (flag in localStorage); returning users go straight to their data
 
+## 📦 License
+
+MIT — see [LICENSE](LICENSE). Free to use, modify and deploy.
+
 ## 🚀 How to run it
 
 You have three easy options — **no coding needed**:
@@ -174,6 +178,7 @@ profitleak-ai/
 │   ├── plan.test.js        ← FREE/PRO plan tests
 │   ├── report.test.js      ← Profit Report tests
 │   ├── audit.test.js      ← full quality & reliability audit (187 checks)
+│   ├── e2e.test.js        ← deployment end-to-end journey (40 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -181,10 +186,11 @@ profitleak-ai/
 └── README.md
 ```
 
-## 🔍 Quality & Reliability Audit (v1.7.1 → v1.7.3, three rounds)
+## 🔍 Quality & Reliability Audit (v1.7.1 → v1.7.4, four rounds)
 
-Three full independent audit passes over the entire application — **187 automated checks**
-(`npm run test:audit`), all green, on top of the existing 273 tests:
+Four full independent audit passes over the entire application — **187 audit + 40
+end-to-end checks** (`npm run test:audit`, `npm run test:e2e`), all green, on top of the
+existing 273 tests (500 in total):
 
 - **Financial formulas** — every metric verified against the spec
   (Revenue = price × units; Total Cost = all 6 costs; True Profit = revenue − cost;
@@ -230,12 +236,20 @@ Fixes made during the audit (no features changed):
 - Typing a $0 goal into the Profit Goal planner crashed its live calculation
   (TypeError from a null plan) — a $0 or negative target now shows the
   “type a target” hint instead
+- **Round 4 / deployment audit (v1.7.4)** — full E2E journey on the single-file
+  deployment artifact (landing → Get Started → dashboard → add → analysis →
+  diagnosis → what-if → CSV import → report → free/pro → mobile), project completeness
+  (LICENSE added, all referenced files exist, dependencies resolve, no junk in git,
+  build is byte-reproducible), and mobile polish: all text inputs are now 16px+
+  so iOS Safari never auto-zooms on focus
 
 ## 🧪 Tests
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + report + smoke + full QA audit (460 total)
+npm test               # everything below — 500 checks total, all green
+npm run test:audit    # quality & reliability audit (187 checks)
+npm run test:e2e      # deployment end-to-end journey (40 checks)
 npm run test:audit    # quality & reliability audit only (143 checks)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
