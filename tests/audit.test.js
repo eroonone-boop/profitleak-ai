@@ -1008,7 +1008,7 @@ test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.or
   SRC_FILES.forEach(f => {
     const rest = f.text
       .split('https://api.gumroad.com').join('')
-      .split('https://profitleakai.gumroad.com').join('') // our store (buy button)
+      .split('https://mohamedramli.gumroad.com').join('') // our store (buy button)
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
     assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');
