@@ -1011,55 +1011,150 @@
       toast('Add a product first \u2014 there is nothing to export yet.');
       return;
     }
-    var csv = CSV.toCsv(state.products);
-    var a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-    a.download = 'profitleak-products.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadCsvFile('profitleak-products.csv', CSV.toCsv(state.products));
     toast('Exported ' + state.products.length + ' product(s) to CSV \u2713');
   }
 
+  function downloadCsvFile(fileName, csvText) {
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvText);
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  /* Example file with the exact column names the importer expects */
+  function downloadCsvTemplate() {
+    var template = CSV.toCsv([
+      { name: 'Example: Wireless Earbuds', sellingPrice: 49.99, purchaseCost: 18.50,
+        adCostPerSale: 6.00, shippingCost: 4.50, platformFees: 7.00,
+        discountPerSale: 2.00, returnCostPerSale: 1.50, unitsSold: 320 },
+      { name: 'Example: Cotton T-Shirt (costs can be 0)', sellingPrice: 19.00, purchaseCost: 6.50,
+        adCostPerSale: 3.20, shippingCost: 3.80, platformFees: 2.85,
+        discountPerSale: 0, returnCostPerSale: 0.60, unitsSold: 150 }
+    ]);
+    downloadCsvFile('profitleak-template.csv', template);
+    toast('Template downloaded \u2014 fill in your products and import it back \u2713');
+  }
+
+  /* ---------- import preview modal ---------- */
+  var pendingImport = [];
+  var importKeydown = null;
+
+  function closeImportPreview() {
+    $('#import-overlay').hidden = true;
+    document.body.classList.remove('modal-open');
+    if (importKeydown) {
+      document.removeEventListener('keydown', importKeydown);
+      importKeydown = null;
+    }
+    pendingImport = [];
+  }
+
+  function errorsHtml(errors) {
+    return '<div class="imp-errors"><p class="imp-errors-title">' + errors.length +
+      ' row(s) will be skipped:</p><ul>' +
+      errors.map(function (er) {
+        return '<li><span class="imp-row">Row ' + er.row + '</span>' +
+          (er.name ? ' \u201C' + esc(er.name) + '\u201D' : '') +
+          ' \u2014 ' + esc(er.reason) + '</li>';
+      }).join('') + '</ul></div>';
+  }
+
+  function openImportPreview(res, fileName) {
+    var overlay = $('#import-overlay');
+    var confirmBtn = $('#import-confirm');
+    pendingImport = [];
+
+    if (res.missingColumns) {
+      /* header row lacks required columns */
+      $('#import-summary').innerHTML =
+        '<span class="imp-bad">\u26A0\uFE0F This file is missing required columns: <strong>' +
+        esc(res.missingColumns.join(', ')) + '</strong></span>';
+      $('#import-body').innerHTML =
+        '<div class="imp-notice imp-notice-red">' +
+          '<p>Your CSV needs a header row (the first line) with at least these columns:</p>' +
+          '<p><strong>' + esc(res.missingColumns.join(' \u00B7 ')) + '</strong></p>' +
+          '<p>Tip: download our template to see the exact column names \u2014 then paste your data underneath.</p>' +
+          '<button class="btn btn-ghost btn-sm" type="button" data-action="csv-template">Download CSV template</button>' +
+        '</div>';
+      confirmBtn.disabled = true;
+    } else if (!res.products.length) {
+      $('#import-summary').innerHTML =
+        '<span class="imp-bad">\u26A0\uFE0F No valid products found in \u201C' + esc(fileName) + '\u201D</span>';
+      $('#import-body').innerHTML = res.errors.length ? errorsHtml(res.errors) :
+        '<div class="imp-notice imp-notice-red"><p>The file appears to be empty. Check it and try again.</p></div>';
+      confirmBtn.disabled = true;
+    } else {
+      /* preview table of valid products */
+      var slots = Plan.freeSlotsFor(state.products.length);
+      var importable = Math.min(res.products.length, slots);
+      var capped = importable < res.products.length;
+
+      var rows = res.products.map(function (p) {
+        var m = CALC.computeMetrics(p);
+        var meta = STATUS_META[CALC.getStatus(m)];
+        var cls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
+        return '<tr>' +
+          '<td>' + esc(p.name) + '</td>' +
+          '<td class="num">' + fmtMoney(p.sellingPrice) + '</td>' +
+          '<td class="num">' + p.unitsSold + '</td>' +
+          '<td class="num"><strong class="' + cls + '">' + fmtMoney(m.trueProfit) + '</strong></td>' +
+          '<td><span class="badge ' + meta.cls + '">' + meta.label + '</span></td>' +
+        '</tr>';
+      }).join('');
+
+      var html =
+        '<div class="imp-table-wrap"><table class="imp-table">' +
+          '<thead><tr><th>Product</th><th class="num">Price</th><th class="num">Units</th>' +
+          '<th class="num">True profit</th><th>Status</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table></div>';
+
+      if (capped) {
+        html += '<div class="imp-notice imp-notice-amber">' +
+          (importable > 0
+            ? '<p><strong>Free plan:</strong> only ' + importable + ' of ' + res.products.length +
+              ' products will be imported \u2014 your plan is nearly full. ' +
+              '<a href="#/pricing" data-close-import>Upgrade to Pro</a> for unlimited imports.</p>'
+            : '<p><strong>Free plan is full (' + Plan.freeLimit() + ' of ' + Plan.freeLimit() +
+              ' products).</strong> <a href="#/pricing" data-close-import>Upgrade to Pro</a> to import these products.</p>') +
+        '</div>';
+      }
+      if (res.errors.length) html += errorsHtml(res.errors);
+
+      $('#import-summary').innerHTML =
+        '<span class="imp-good">\u2705 ' + res.products.length + ' valid product(s) found in \u201C' +
+        esc(fileName) + '\u201D</span>' +
+        (res.errors.length
+          ? ' <span class="imp-bad">\u00B7 ' + res.errors.length + ' row(s) with problems</span>'
+          : '');
+
+      $('#import-body').innerHTML = html;
+      confirmBtn.disabled = importable <= 0;
+      if (importable > 0) pendingImport = res.products.slice(0, importable);
+    }
+
+    overlay.hidden = false;
+    document.body.classList.add('modal-open');
+    importKeydown = function (e) { if (e.key === 'Escape') closeImportPreview(); };
+    document.addEventListener('keydown', importKeydown);
+    if (!confirmBtn.disabled) confirmBtn.focus();
+  }
+
   function importCsvText(text, fileName) {
-    var res = CSV.fromCsv(text);
-    if (!res.products.length) {
-      toast('No valid products found in \u201C' + esc(fileName) +
-            '\u201D. The file needs a header row with at least: Name, Selling Price, Units Sold.');
-      return;
-    }
+    openImportPreview(CSV.fromCsv(text), fileName);
+  }
 
-    /* FREE plan: only room for a few more products */
-    var slots = Plan.freeSlotsFor(state.products.length);
-    if (slots <= 0) {
-      confirmDialog({
-        title: 'Free plan limit reached',
-        message: 'Your free plan holds ' + Plan.freeLimit() +
-                 ' products. Upgrade to Pro for unlimited products and imports.',
-        confirmText: 'See pricing'
-      }).then(function (ok) { if (ok) location.hash = '#/pricing'; });
-      return;
-    }
-    var importable = Math.min(res.products.length, slots);
-    var capped = res.products.length > importable;
-
-    var msg = 'Found ' + res.products.length + ' valid product(s)' +
-      (res.skipped ? ' and skipped ' + res.skipped + ' invalid row(s)' : '') +
-      ' in \u201C' + fileName + '\u201D.' +
-      (capped ? ' Your free plan has room for ' + importable + ' more \u2014 the rest will be skipped.' : '') +
-      ' Add them to your dashboard?';
-    confirmDialog({
-      title: 'Import products from CSV',
-      message: msg,
-      confirmText: 'Add ' + importable + ' product' + (importable > 1 ? 's' : '')
-    }).then(function (ok) {
-      if (!ok) return;
-      state.products = state.products.concat(res.products.slice(0, importable));
-      persist();
-      render();
-      toast('Imported ' + importable + ' product(s) \u2713' +
-            (capped ? ' \u2014 upgrade to Pro for unlimited imports.' : ''));
-    });
+  function onImportConfirm() {
+    if (!pendingImport.length) return;
+    var n = pendingImport.length;
+    state.products = state.products.concat(pendingImport);
+    persist();
+    closeImportPreview();
+    render(); // refreshes KPIs, alerts, charts, table, banners
+    toast('Imported ' + n + ' product(s) \u2713');
   }
 
   function onCsvFileChosen(e) {
@@ -1270,6 +1365,9 @@
      GLOBAL EVENTS (delegation)
      ============================================================= */
   function onGlobalClick(e) {
+    var closeImp = e.target.closest ? e.target.closest('[data-close-import]') : null;
+    if (closeImp) { closeImportPreview(); return; }
+
     var actionEl = e.target.closest ? e.target.closest('[data-action]') : null;
     if (actionEl) {
       var act = actionEl.getAttribute('data-action');
@@ -1281,6 +1379,7 @@
       else if (act === 'clear-all') { clearAllFlow(); }
       else if (act === 'export-csv') { exportCsv(); }
       else if (act === 'import-csv') { $('#csv-file').click(); }
+      else if (act === 'csv-template') { downloadCsvTemplate(); }
       else if (act === 'upgrade') { showProComingSoon(); }
       else if (act === 'deactivate-preview') {
         Plan.setPlan('free');
@@ -1340,6 +1439,12 @@
     });
 
     $('#csv-file').addEventListener('change', onCsvFileChosen);
+
+    $('#import-cancel').addEventListener('click', closeImportPreview);
+    $('#import-confirm').addEventListener('click', onImportConfirm);
+    $('#import-overlay').addEventListener('click', function (e) {
+      if (e.target === e.currentTarget) closeImportPreview();
+    });
 
     document.addEventListener('click', onGlobalClick);
     document.addEventListener('keydown', onGlobalKeydown);

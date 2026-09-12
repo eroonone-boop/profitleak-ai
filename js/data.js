@@ -232,38 +232,60 @@
     return map;
   })();
 
-  function validCsvRow(o) {
-    if (!o.name || !String(o.name).trim()) return false;
+  var COLUMN_LABELS = {
+    name: 'Product name', sellingPrice: 'Selling price', purchaseCost: 'Purchase cost',
+    adCostPerSale: 'Advertising cost per sale', shippingCost: 'Shipping cost',
+    platformFees: 'Platform/payment fees', discountPerSale: 'Discount per sale',
+    returnCostPerSale: 'Return/refund cost per sale', unitsSold: 'Units sold'
+  };
+
+  /* Returns null when the row is valid, or a human-readable reason
+     explaining exactly what is wrong with it. */
+  function rowError(o) {
+    if (!o.name || !String(o.name).trim()) return 'Missing product name';
     var price = Number(o.sellingPrice);
-    if (!isFinite(price) || price <= 0) return false;
+    if (!isFinite(price) || price <= 0) return 'Selling price must be a number greater than $0';
     var units = Number(o.unitsSold);
-    if (!isFinite(units) || units < 1 || !Number.isInteger(units)) return false;
+    if (!isFinite(units) || units < 1 || !Number.isInteger(units)) return 'Units sold must be a whole number of at least 1';
     var costKeys = ['purchaseCost', 'adCostPerSale', 'shippingCost',
                     'platformFees', 'discountPerSale', 'returnCostPerSale'];
     for (var i = 0; i < costKeys.length; i++) {
-      // a missing cost column counts as $0 — not an error
-      var v = Number(o[costKeys[i]] === undefined ? 0 : o[costKeys[i]]);
-      if (!isFinite(v) || v < 0) return false;
+      var raw = o[costKeys[i]];
+      if (raw === undefined || String(raw).trim() === '') continue; // blank cost = $0
+      var v = Number(raw);
+      if (!isFinite(v)) return 'Invalid number in \u201C' + COLUMN_LABELS[costKeys[i]] + '\u201D';
+      if (v < 0) return 'Negative value in \u201C' + COLUMN_LABELS[costKeys[i]] + '\u201D';
     }
-    return true;
+    return null;
   }
 
-  /* Parse CSV text into products. Returns { products, skipped }.
-     Requires a header row; missing cost columns default to 0. */
+  /* Parse CSV text into products.
+     Returns:
+       products        — valid products, ready to add
+       errors          — [{ row: <line number>, name, reason }] for invalid rows
+       skipped         — errors.length (kept for backward compatibility)
+       missingColumns  — friendly names of required columns absent from the header
+       rowCount        — number of data rows in the file                          */
   function fromCsv(text) {
     var rows = parseCsv(text);
-    if (!rows.length) return { products: [], skipped: 0 };
+    if (!rows.length) return { products: [], errors: [], skipped: 0, missingColumns: null, rowCount: 0 };
 
     var header = rows[0].map(function (h) {
       return HEADER_ALIASES[String(h).toLowerCase().replace(/[^a-z0-9]/g, '')] || null;
     });
+
     if (header.indexOf('name') === -1 || header.indexOf('sellingPrice') === -1 ||
         header.indexOf('unitsSold') === -1) {
-      return { products: [], skipped: Math.max(0, rows.length - 1) };
+      var missing = [];
+      if (header.indexOf('name') === -1) missing.push(COLUMN_LABELS.name);
+      if (header.indexOf('sellingPrice') === -1) missing.push(COLUMN_LABELS.sellingPrice);
+      if (header.indexOf('unitsSold') === -1) missing.push(COLUMN_LABELS.unitsSold);
+      return { products: [], errors: [], skipped: 0, missingColumns: missing,
+               rowCount: Math.max(0, rows.length - 1) };
     }
 
-    var products = [], skipped = 0;
-    rows.slice(1).forEach(function (cells) {
+    var products = [], errors = [];
+    rows.slice(1).forEach(function (cells, i) {
       var o = {};
       header.forEach(function (key, idx) {
         if (!key) return; // unknown column — ignored
@@ -272,7 +294,9 @@
         if (key === 'name') o.name = String(cell).trim().slice(0, 120);
         else if (cell !== '') o[key] = cell.trim();
       });
-      if (validCsvRow(o)) {
+      if (!Object.keys(o).length) return; // completely empty line
+      var reason = rowError(o);
+      if (!reason) {
         products.push({
           id: uid(),
           name: o.name,
@@ -286,11 +310,12 @@
           unitsSold: Number(o.unitsSold),
           createdAt: new Date().toISOString()
         });
-      } else if (Object.keys(o).length) {
-        skipped++;
+      } else {
+        errors.push({ row: i + 2, name: String(o.name || '').slice(0, 40), reason: reason });
       }
     });
-    return { products: products, skipped: skipped };
+    return { products: products, errors: errors, skipped: errors.length,
+             missingColumns: null, rowCount: rows.length - 1 };
   }
 
   var CSV = { HEADERS: CSV_HEADERS, KEYS: CSV_KEYS, toCsv: toCsv, parseCsv: parseCsv, fromCsv: fromCsv };

@@ -197,6 +197,7 @@
           <div class="table-tools">
             <button class="btn btn-ghost btn-sm" type="button" data-action="export-csv">Export CSV</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="import-csv">Import CSV</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="csv-template" title="Download an example CSV with the correct column names">CSV template</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="load-samples">Load sample data</button>
             <button class="btn btn-ghost btn-sm danger-text" type="button" data-action="clear-all">Clear all</button>
             <input type="file" id="csv-file" accept=".csv,text/csv" hidden>
@@ -364,6 +365,18 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="modal-cancel" type="button">Cancel</button>
       <button class="btn btn-primary" id="modal-confirm" type="button">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="import-overlay" hidden>
+  <div class="modal import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <h3 class="modal-title" id="import-title">Import products from CSV</h3>
+    <div class="import-summary" id="import-summary"></div>
+    <div class="import-body" id="import-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="import-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="import-confirm" type="button">Import Products</button>
     </div>
   </div>
 </div>

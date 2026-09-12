@@ -29,7 +29,7 @@ No signup. No backend. Your data is stored locally in your browser.
 | 🔎 **Status filters** | All / Losing money / Low profit / Profitable, with live counts |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |
-| 📤 **CSV export & import** | Back up your products or bring them in from a spreadsheet — with full validation |
+| 📤 **CSV import with preview** | Upload a CSV → preview each product's true profit & status, see clear per-row validation errors, then press “Import Products” — plus a downloadable template and CSV export |
 | 💳 **FREE + PRO plans** | Free tier (3 products, basic diagnosis) + Pro tier (unlimited products, simulator, cost ranking, profit goals) with a pricing page — no payments connected yet |
 | 📱 **Responsive** | Works on desktop, tablet and mobile |
 | 💾 **Local data** | Stored in your browser (localStorage); sample products on first launch |
@@ -65,6 +65,22 @@ You have three easy options — **no coding needed**:
 
 > First launch comes with 6 sample products so you can explore immediately.
 > Use **Load sample data** / **Clear all** on the dashboard to reset anytime.
+
+## 📄 CSV import format
+
+The importer reads a header row plus your products, one per line:
+
+```
+Name, Selling Price, Purchase Cost, Ad Cost per Sale, Shipping Cost,
+Platform Fees, Discount per Sale, Return Cost per Sale, Units Sold
+```
+
+- Required columns: **Name, Selling Price, Units Sold** (missing ones are listed for you)
+- Missing cost columns / blank cells count as $0
+- Lower-case and alternative headers (e.g. `price`, `units`) are accepted
+- Every invalid row is skipped *and explained* (“Row 4 — Missing product name”)
+- **CSV template** button on the dashboard downloads a ready-to-fill example
+- Free plan: imports stop at 3 products (with a clear notice); Pro: unlimited
 
 ## 🧮 How the math works
 
@@ -133,7 +149,7 @@ profitleak-ai/
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + full app click-through tests (194 total)
+npm test               # engine + CSV + plan + full app click-through tests (212 total)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
 npm run test:plan      # FREE/PRO plan tests (zero dependencies)

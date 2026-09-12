@@ -122,6 +122,31 @@ async function main() {
   test('upsell links to the pricing page', () =>
     assert.ok(d.querySelector('#form-upsell a[href="#/pricing"]')));
 
+  /* ---- import attempt on a full free plan: gated, data safe ---- */
+  const freeTryCsv = CSV.toCsv([
+    { name: 'Free Try A', sellingPrice: 10, purchaseCost: 4, adCostPerSale: 1,
+      shippingCost: 1, platformFees: 0.5, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 10 },
+    { name: 'Free Try B', sellingPrice: 12, purchaseCost: 5, adCostPerSale: 1,
+      shippingCost: 1, platformFees: 0.6, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 8 }
+  ]);
+  const fi = d.getElementById('csv-file');
+  const ff = new w.File([freeTryCsv], 'free-try.csv', { type: 'text/csv' });
+  Object.defineProperty(fi, 'files', { value: [ff], configurable: true });
+  fi.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tick(200);
+  test('import preview opens but warns the free plan is full', () => {
+    assert.ok(!d.querySelector('#import-overlay').hidden);
+    assert.ok(d.querySelector('#import-body').textContent.includes('Free plan is full'));
+  });
+  test('Import Products is disabled on a full free plan', () =>
+    assert.ok(d.getElementById('import-confirm').disabled));
+  test('preview offers an upgrade link to Pricing', () =>
+    assert.ok(d.querySelector('#import-body [data-close-import]')));
+  d.getElementById('import-cancel').click();
+  await tick(30);
+  test('closing the preview leaves the 3 products untouched', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+
   /* ================= STAGE 2 — PRICING & UPGRADE ================= */
 
   w.location.hash = '#/pricing';
@@ -244,23 +269,84 @@ async function main() {
     assert.ok(Array.from(d.querySelectorAll('#toast-container .toast'))
       .some(t => t.textContent.includes('Exported 3 product(s)'))));
 
+  d.querySelector('[data-action="csv-template"]').click();
+  await tick(30);
+  test('CSV template download button shows a toast', () =>
+    assert.ok(Array.from(d.querySelectorAll('#toast-container .toast'))
+      .some(t2 => t2.textContent.includes('Template downloaded'))));
+
+  const fileInput = d.getElementById('csv-file');
+  const pick = (text, name) => {
+    const f = new w.File([text], name, { type: 'text/csv' });
+    Object.defineProperty(fileInput, 'files', { value: [f], configurable: true });
+    fileInput.dispatchEvent(new w.Event('change', { bubbles: true }));
+  };
   const csvText = CSV.toCsv([
     { name: 'Imported Lamp', sellingPrice: 15, purchaseCost: 6, adCostPerSale: 1.5,
       shippingCost: 2, platformFees: 1.2, discountPerSale: 0, returnCostPerSale: 0.5, unitsSold: 30 },
     { name: 'Imported Poster', sellingPrice: 9.99, purchaseCost: 2, adCostPerSale: 2,
       shippingCost: 1.5, platformFees: 0.9, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 60 }
   ]);
-  const fileInput = d.getElementById('csv-file');
-  const fakeFile = new w.File([csvText], 'import-test.csv', { type: 'text/csv' });
-  Object.defineProperty(fileInput, 'files', { value: [fakeFile], configurable: true });
-  fileInput.dispatchEvent(new w.Event('change', { bubbles: true }));
+  pick(csvText, 'import-test.csv');
   await tick(200);
-  test('CSV import opens a confirm dialog listing 2 valid products', () =>
-    assert.ok(d.querySelector('#modal-message').textContent.includes('2 valid product')));
-  d.getElementById('modal-confirm').click();
+  test('import opens a PREVIEW modal listing both products', () => {
+    assert.ok(!d.querySelector('#import-overlay').hidden);
+    assert.equal(d.querySelectorAll('#import-body .imp-table tbody tr').length, 2);
+    assert.ok(d.querySelector('#import-body').textContent.includes('Imported Lamp'));
+    assert.ok(d.querySelector('#import-body').textContent.includes('Imported Poster'));
+  });
+  test('preview shows true profit & status per product ($114.00, PROFITABLE)', () => {
+    const t2 = d.querySelector('#import-body').textContent;
+    assert.ok(t2.includes('$114.00') && t2.includes('PROFITABLE'));
+  });
+  d.getElementById('import-confirm').click();
   await tick();
-  test('CSV import adds both products (5 rows total)', () =>
+  test('"Import Products" adds both products (5 rows total)', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 5));
+  test('dashboard KPIs refresh after import (Total products = 5)', () =>
+    assert.ok(d.querySelector('#kpi-grid').textContent.includes('5')));
+
+  /* ---- import with invalid rows: clear reasons, only valid imported ---- */
+  const FULL_HEADER = 'Name,Selling Price,Purchase Cost,Ad Cost per Sale,Shipping Cost,Platform Fees,Discount per Sale,Return Cost per Sale,Units Sold';
+  const badCsv = FULL_HEADER + '\nGood Lamp,20,8,2,2,1,0,0,10\n,15,5,1,1,1,0,0,5\nBad Price,abc,5,1,1,1,0,0,5\nNeg Ads,20,5,-2,1,1,0,0,5\nHalf Units,20,5,1,1,1,0,0,2.5\n';
+  pick(badCsv, 'with-errors.csv');
+  await tick(200);
+  test('invalid rows are listed with clear reasons', () => {
+    const t2 = d.querySelector('#import-body').textContent;
+    assert.ok(t2.includes('Missing product name'));
+    assert.ok(t2.includes('greater than $0'));
+    assert.ok(t2.includes('Negative value in'));
+    assert.ok(t2.includes('whole number of at least 1'));
+    assert.ok(t2.includes('row(s) will be skipped'));
+  });
+  test('the 1 valid row is still previewed for import', () => {
+    assert.equal(d.querySelectorAll('#import-body .imp-table tbody tr').length, 1);
+    assert.ok(d.querySelector('#import-body').textContent.includes('Good Lamp'));
+  });
+  d.getElementById('import-confirm').click();
+  await tick();
+  test('import adds just the 1 valid product (6 rows)', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+
+  /* ---- missing required columns ---- */
+  pick('Foo,Bar\n1,2\n', 'no-header.csv');
+  await tick(200);
+  test('missing required columns: notice shown, import disabled', () => {
+    const summary = d.querySelector('#import-summary').textContent;
+    const body = d.querySelector('#import-body').textContent;
+    assert.ok(summary.includes('missing required columns'));
+    assert.ok(body.includes('needs a header row'));
+    assert.ok(body.includes('Product name'));
+    assert.ok(d.getElementById('import-confirm').disabled);
+  });
+  test('missing-columns notice offers the CSV template', () =>
+    assert.ok(d.querySelector('#import-body [data-action="csv-template"]')));
+  d.getElementById('import-cancel').click();
+  await tick(30);
+  test('cancel closes the preview without importing (still 6 rows)', () => {
+    assert.ok(d.querySelector('#import-overlay').hidden);
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6);
+  });
   test('imported lamp is flagged PROFITABLE with correct math ($114.00)', () => {
     const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
       .find(r => r.textContent.includes('Imported Lamp'));

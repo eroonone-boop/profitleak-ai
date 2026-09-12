@@ -87,6 +87,9 @@ test('invalid rows (price 0, bad units, missing name, negative cost) are skipped
 test('wrong header (no Name/Selling Price/Units) is rejected', () => {
   const res = CSV.fromCsv('Foo,Bar,Baz\n1,2,3\n');
   assert.equal(res.products.length, 0);
+  assert.ok(res.missingColumns.includes('Product name'));
+  assert.ok(res.missingColumns.includes('Selling price'));
+  assert.ok(res.missingColumns.includes('Units sold'));
 });
 test('empty input is safe', () => {
   const res = CSV.fromCsv('');
@@ -96,6 +99,48 @@ test('empty input is safe', () => {
 test('imported numbers are real numbers, not strings', () => {
   const p = CSV.fromCsv(FULL_HEADER + '\nTypes,12.5,3.25,1.5,0.75,0.5,0.25,0.1,10\n').products[0];
   assert.ok(typeof p.sellingPrice === 'number' && typeof p.unitsSold === 'number');
+});
+
+/* ---------- per-row validation errors (v1.5) ---------- */
+test('invalid rows report clear per-row reasons', () => {
+  const res = CSV.fromCsv(FULL_HEADER + '\n,10,2,1,1,0,0,0,5\nBadPrice,abc,2,1,1,0,0,0,5\nNegAd,10,2,-1,1,0,0,0,5\nHalfUnits,10,2,1,1,0,0,0,2.5\nZeroPrice,0,2,1,1,0,0,0,5\n');
+  assert.equal(res.products.length, 0);
+  assert.equal(res.errors.length, 5);
+  const reasons = res.errors.map(e => e.reason);
+  assert.ok(reasons.includes('Missing product name'));
+  assert.ok(reasons.includes('Selling price must be a number greater than $0'));
+  assert.ok(reasons.some(r => r.includes('Negative value in') && r.includes('Advertising cost per sale')));
+  assert.ok(reasons.includes('Units sold must be a whole number of at least 1'));
+});
+test('invalid numbers in cost columns are named', () => {
+  const res = CSV.fromCsv(FULL_HEADER + '\nX,10,abc,2,1,0,0,0,5\n');
+  assert.ok(res.errors[0].reason.includes('Invalid number in') && res.errors[0].reason.includes('Purchase cost'));
+});
+test('errors carry the CSV line number (header = line 1)', () => {
+  const res = CSV.fromCsv(FULL_HEADER + '\nOk,10,2,1,1,0,0,0,5\n,10,2,1,1,0,0,0,5\n');
+  assert.equal(res.products.length, 1);
+  assert.equal(res.errors[0].row, 3);
+  assert.equal(res.errors[0].reason, 'Missing product name');
+});
+test('mixed file: valid rows import, invalid rows explained', () => {
+  const res = CSV.fromCsv(FULL_HEADER + '\nGood,10,2,1,1,0,0,0,5\n,0,x,-1,q,,0,0,z\n');
+  assert.equal(res.products.length, 1);
+  assert.equal(res.errors.length, 1);
+  assert.equal(res.skipped, 1);
+  assert.equal(res.rowCount, 2);
+});
+test('template round-trip: the two example rows import cleanly', () => {
+  const template = CSV.toCsv([
+    { name: 'Example: Wireless Earbuds', sellingPrice: 49.99, purchaseCost: 18.50,
+      adCostPerSale: 6.00, shippingCost: 4.50, platformFees: 7.00,
+      discountPerSale: 2.00, returnCostPerSale: 1.50, unitsSold: 320 },
+    { name: 'Example: Cotton T-Shirt (costs can be 0)', sellingPrice: 19.00, purchaseCost: 6.50,
+      adCostPerSale: 3.20, shippingCost: 3.80, platformFees: 2.85,
+      discountPerSale: 0, returnCostPerSale: 0.60, unitsSold: 150 }
+  ]);
+  const res = CSV.fromCsv(template);
+  assert.equal(res.products.length, 2);
+  assert.equal(res.errors.length, 0);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed\n');
