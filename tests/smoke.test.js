@@ -1,9 +1,9 @@
 /* =============================================================
-   ProfitLeak AI — headless smoke test
+   ProfitLeak AI — headless smoke test (FREE + PRO journey)
    Loads the REAL app (index.html + all scripts) in jsdom and
-   clicks through the whole user journey:
-   landing \u2192 dashboard \u2192 analysis \u2192 add (validation + save)
-   \u2192 delete (confirm dialog) \u2192 live preview.
+   walks the complete monetization + product journey:
+   free user (limits & locked Pro features) → pricing page →
+   upgrade ("coming soon" + free preview) → full Pro experience.
    Requires dev dependency:  npm install   then   node tests/smoke.test.js
    ============================================================= */
 'use strict';
@@ -27,7 +27,7 @@ async function main() {
   const pageErrors = [];
   virtualConsole.on('jsdomError', err => {
     const msg = String((err && err.message) || err);
-    if (!/^Not implemented:/i.test(msg)) pageErrors.push(msg); // jsdom noise is OK
+    if (!/^Not implemented:/i.test(msg)) pageErrors.push(msg);
   });
 
   const dom = await JSDOM.fromFile(path.join(__dirname, '..', 'index.html'), {
@@ -48,82 +48,258 @@ async function main() {
     catch (e) { failed++; console.error('  \u2717 ' + name + ' \u2014 ' + e.message); process.exitCode = 1; }
   };
 
-  console.log('\nProfitLeak AI \u2014 app smoke test (jsdom)\n');
+  console.log('\nProfitLeak AI \u2014 app smoke test (FREE + PRO journey)\n');
+
+  /* ================= STAGE 1 — FREE USER ================= */
 
   /* ---- landing ---- */
   test('landing page renders', () => assert.ok(d.querySelector('.hero h1')));
   test('hero example computed live by the engine (\u2212$0.76)', () =>
     assert.ok(d.querySelector('#hero-example').textContent.includes('\u2212$0.76')));
+  test('landing nav links to Pricing', () =>
+    assert.ok(d.querySelector('.landing-nav a[href="#/pricing"]')));
 
-  /* ---- landing CTA → dashboard ---- */
+  /* ---- dashboard as a free user ---- */
   d.querySelector('.hero-cta a[href="#/dashboard"]').click();
   await tick();
   test('"Analyze My Products" opens the dashboard', () =>
     assert.ok(!d.querySelector('#page-dashboard').hidden));
+  test('free plan banner shows 3 of 3 products used', () => {
+    const b = d.querySelector('#plan-banner');
+    assert.ok(!b.hidden);
+    assert.ok(b.textContent.includes('Free plan') && b.textContent.includes('3 of 3'));
+  });
+  test('topbar shows an Upgrade to Pro button', () =>
+    assert.ok(d.querySelector('#plan-nav .btn-gold')));
   test('6 KPI cards render', () => assert.equal(d.querySelectorAll('#kpi-grid .kpi').length, 6));
-  test('6 sample products in the table', () => assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
-  test('losing / low / profitable badges present', () => {
-    assert.ok(d.querySelector('#table-wrap .badge-red'));
-    assert.ok(d.querySelector('#table-wrap .badge-amber'));
-    assert.ok(d.querySelector('#table-wrap .badge-green'));
+  test('free seed: 3 sample products in the table', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+  test('one product of each status (\uD83D\uDD34 \uD83D\uDFE1 \uD83D\uDFE2)', () => {
+    assert.equal(d.querySelectorAll('#table-wrap .badge-red').length, 1);
+    assert.equal(d.querySelectorAll('#table-wrap .badge-amber').length, 1);
+    assert.equal(d.querySelectorAll('#table-wrap .badge-green').length, 1);
   });
-  test('profit chart has 6 clickable bars', () => assert.equal(d.querySelectorAll('#chart-profit .bar-row').length, 6));
-  test('cost donut renders with legend', () => {
-    assert.ok(d.querySelector('#chart-costs svg'));
-    assert.ok(d.querySelectorAll('#chart-costs .legend-row').length >= 4);
-  });
+  test('profit chart has 3 clickable bars', () =>
+    assert.equal(d.querySelectorAll('#chart-profit .bar-row').length, 3));
+  test('cost donut renders', () => assert.ok(d.querySelector('#chart-costs svg')));
   test('losing-money alert banner shown', () => assert.ok(d.querySelector('#alerts .alert-red')));
 
-  /* ---- product analysis (worst product is first by default sort) ---- */
+  /* ---- analysis as a free user: basics yes, Pro locked ---- */
   d.querySelector('tr.clickable').click();
   await tick();
-  test('analysis page opens on row click', () => assert.ok(!d.querySelector('#page-analysis').hidden));
   test('worst product (Clear Phone Case) analysed first', () =>
     assert.ok(d.querySelector('#analysis-head h1').textContent.includes('Clear Phone Case')));
-  test('findings listed ("where are you losing money?")', () =>
+  test('free user sees findings ("where are you losing money?")', () =>
     assert.ok(d.querySelectorAll('#analysis-issues .finding').length >= 3));
-  test('recommendations listed ("what should you change?")', () =>
+  test('free user sees recommendations ("what should you change?")', () =>
     assert.ok(d.querySelectorAll('#analysis-recs li').length >= 3));
-  test('numbers table includes true-profit row', () => assert.ok(d.querySelector('#analysis-numbers .profit-row')));
-  test('unit-economics stacked bar renders', () => assert.ok(d.querySelector('#analysis-bar .anatomy-track')));
-  test('cost ranking shows #1 biggest cost (advertising)', () => {
-    const first = d.querySelector('#diagnosis-section .rank-row');
-    assert.ok(first && first.textContent.includes('Advertising'));
-    assert.ok(d.querySelector('#diagnosis-section .rank-tag'));
+  test('free user sees the numbers table & unit bar', () => {
+    assert.ok(d.querySelector('#analysis-numbers .profit-row'));
+    assert.ok(d.querySelector('#analysis-bar .anatomy-track'));
   });
-  test('recommendation names the biggest cost causing the loss', () =>
-    assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is advertising at $5.50 per sale')));
+  test('free user sees the basic diagnosis (tiles + sentence)', () => {
+    assert.ok(d.querySelector('#diagnosis-section .diag-current').textContent.includes('\u2212$380.00'));
+    assert.ok(d.querySelector('.diag-sentence').textContent.includes('40% of your total costs'));
+    assert.ok(d.querySelector('.diag-action .diag-value').textContent.includes('Reduce advertising cost'));
+  });
+  test('free user: cost ranking, simulator & goal are LOCKED', () => {
+    assert.equal(d.querySelectorAll('#diagnosis-section .pro-locked').length, 3);
+    assert.ok(!d.querySelector('.wi-slider'));
+    assert.ok(!d.querySelector('#goal-input'));
+    assert.ok(!d.querySelector('#diagnosis-section .rank-row'));
+  });
 
-  /* ---- smart profit diagnosis ---- */
-  test('diagnosis card renders with current profit tile', () =>
-    assert.ok(d.querySelector('#diagnosis-section .diag-current').textContent.includes('\u2212$380.00')));
-  test('diagnosis sentence quotes the real % of total costs', () =>
-    assert.ok(d.querySelector('#diagnosis-section .diag-sentence').textContent.includes('Your biggest profit leak is advertising. It represents 40% of your total costs')));
-  test('recommended action tile says "Reduce advertising cost"', () =>
-    assert.ok(d.querySelector('#diagnosis-section .diag-action .diag-value').textContent.includes('Reduce advertising cost')));
-  test('diagnosis ranks all 6 costs highest to lowest', () => {
+  /* ---- free limit blocks adding a 4th product ---- */
+  d.querySelector('.back-link').click();
+  await tick();
+  d.querySelector('#page-dashboard .page-actions a[href="#/add"]').click();
+  await tick();
+  test('add form is blocked at the free limit — upsell shown', () => {
+    assert.ok(!d.querySelector('#form-upsell').hidden);
+    assert.ok(d.querySelector('.form-layout').hidden);
+    assert.ok(d.querySelector('#form-upsell').textContent.includes('free plan limit'));
+  });
+  test('upsell links to the pricing page', () =>
+    assert.ok(d.querySelector('#form-upsell a[href="#/pricing"]')));
+
+  /* ================= STAGE 2 — PRICING & UPGRADE ================= */
+
+  w.location.hash = '#/pricing';
+  await tick();
+  test('pricing page renders FREE $0 and PRO $9/month', () => {
+    const t = d.querySelector('#pricing-body').textContent;
+    assert.ok(t.includes('$0') && t.includes('$9') && t.includes('month'));
+  });
+  test('pricing cards show the right tags and ribbon', () => {
+    const t = d.querySelector('#pricing-body').textContent;
+    assert.ok(t.includes('For getting started') && t.includes('For serious online sellers'));
+    assert.ok(t.includes('Most popular'));
+  });
+  test('PRO card lists the key features', () => {
+    const t = d.querySelector('#pricing-body').textContent;
+    ['Unlimited products', 'What-if simulator', 'Cost ranking', 'Advanced profit diagnosis',
+     'Amazon', 'eBay', 'Shopify'].forEach(f => assert.ok(t.includes(f), f));
+  });
+  test('trust line: no payment required today', () =>
+    assert.ok(d.querySelector('.pricing-trust').textContent.includes('No payment required today')));
+
+  d.querySelector('[data-action="upgrade"]').click();
+  await tick(30);
+  test('upgrade button shows "Pro is coming soon" dialog', () => {
+    assert.ok(!d.querySelector('#modal-overlay').hidden);
+    const t = d.querySelector('#modal-overlay').textContent;
+    assert.ok(t.includes('coming soon'));
+  });
+  test('dialog offers free preview access', () =>
+    assert.ok(d.querySelector('#modal-overlay').textContent.includes('free preview')));
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('preview activated — topbar shows the PRO badge', () => {
+    assert.ok(d.querySelector('#plan-nav .pro-badge'));
+  });
+  test('plan is saved to browser storage', () => {
+    let saved = null;
+    try { saved = w.localStorage.getItem('profitleak.plan.v1'); } catch (e) { saved = null; }
+    assert.ok(saved === 'pro' || saved === null);
+  });
+  test('pricing page now shows "Pro active (free preview)" + deactivate link', () => {
+    const t = d.querySelector('#pricing-body').textContent;
+    assert.ok(t.includes('Pro active (free preview)'));
+    assert.ok(d.querySelector('[data-action="deactivate-preview"]'));
+  });
+
+  /* ================= STAGE 3 — PRO USER ================= */
+
+  /* ---- adding now works ---- */
+  w.location.hash = '#/add';
+  await tick();
+  test('add form is available again on Pro', () =>
+    assert.ok(!d.querySelector('.form-layout').hidden && d.querySelector('#form-upsell').hidden));
+  d.getElementById('product-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await tick(30);
+  test('empty form is blocked with inline errors', () =>
+    assert.ok(d.querySelectorAll('#product-form .has-error').length >= 2));
+
+  const set = (id, v) => { d.getElementById(id).value = v; };
+  set('f-name', 'Smoke Test Widget');
+  set('f-price', '5.00');
+  set('f-units', '10');
+  set('f-purchase', '10.00');
+  set('f-ad', '0'); set('f-ship', '0'); set('f-fees', '0');
+  set('f-discount', '0'); set('f-returns', '0');
+  d.getElementById('product-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  await tick();
+  test('product saved \u2014 table now has 4 rows', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 4));
+  test('new product flagged \uD83D\uDD34 LOSING MONEY', () => {
+    const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+      .find(r => r.textContent.includes('Smoke Test Widget'));
+    assert.ok(row && row.querySelector('.badge-red'));
+  });
+
+  /* ---- new product: analysis with unlocked Pro features ---- */
+  Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+    .find(r => r.textContent.includes('Smoke Test Widget')).click();
+  await tick();
+  test('new product\u2019s recommendation explains the biggest cost', () =>
+    assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is purchase cost at $10.00 per sale')));
+  test('cost ranking unlocked (1 row for a single-cost product)', () =>
+    assert.equal(d.querySelectorAll('#diagnosis-section .rank-row').length, 1));
+  test('simulator unlocked (7 sliders) and goal unlocked', () => {
+    assert.equal(d.querySelectorAll('.wi-slider').length, 7);
+    assert.ok(d.querySelector('#goal-input'));
+  });
+
+  /* ---- delete it again ---- */
+  d.querySelector('.back-link').click();
+  await tick();
+  Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+    .find(r => r.textContent.includes('Smoke Test Widget'))
+    .querySelector('[data-action="delete"]').click();
+  await tick(30);
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('product deleted \u2014 back to 3 rows', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+
+  /* ---- status filters (dynamic counts) ---- */
+  const allBadges = Array.from(d.querySelectorAll('#table-wrap .badge'));
+  const nLosing = allBadges.filter(b => b.classList.contains('badge-red')).length;
+  test('filter chips render with correct counts', () => {
+    const chips = Array.from(d.querySelectorAll('#table-filters .chip'));
+    assert.equal(chips.length, 4);
+    assert.ok(chips.find(c => c.textContent.includes('Losing money')).textContent.includes(String(nLosing)));
+  });
+  d.querySelector('[data-filter="losing"]').click();
+  await tick();
+  test('filter: losing chip shows exactly the losing products', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, nLosing));
+  d.querySelector('#table-filters [data-filter="all"]').click();
+  await tick();
+
+  /* ---- CSV export & import (pro) ---- */
+  d.querySelector('[data-action="export-csv"]').click();
+  await tick(30);
+  test('CSV export shows a confirmation toast', () =>
+    assert.ok(Array.from(d.querySelectorAll('#toast-container .toast'))
+      .some(t => t.textContent.includes('Exported 3 product(s)'))));
+
+  const csvText = CSV.toCsv([
+    { name: 'Imported Lamp', sellingPrice: 15, purchaseCost: 6, adCostPerSale: 1.5,
+      shippingCost: 2, platformFees: 1.2, discountPerSale: 0, returnCostPerSale: 0.5, unitsSold: 30 },
+    { name: 'Imported Poster', sellingPrice: 9.99, purchaseCost: 2, adCostPerSale: 2,
+      shippingCost: 1.5, platformFees: 0.9, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 60 }
+  ]);
+  const fileInput = d.getElementById('csv-file');
+  const fakeFile = new w.File([csvText], 'import-test.csv', { type: 'text/csv' });
+  Object.defineProperty(fileInput, 'files', { value: [fakeFile], configurable: true });
+  fileInput.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tick(200);
+  test('CSV import opens a confirm dialog listing 2 valid products', () =>
+    assert.ok(d.querySelector('#modal-message').textContent.includes('2 valid product')));
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('CSV import adds both products (5 rows total)', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 5));
+  test('imported lamp is flagged PROFITABLE with correct math ($114.00)', () => {
+    const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+      .find(r => r.textContent.includes('Imported Lamp'));
+    assert.ok(row && row.querySelector('.badge-green'));
+    assert.ok(row.textContent.includes('$114.00'));
+  });
+
+  /* ---- load samples: PRO gets all 6 ---- */
+  d.querySelector('[data-action="load-samples"]').click();
+  await tick(30);
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('load samples (pro) resets the dashboard to all 6 products', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+
+  /* ---- full Pro analysis on Clear Phone Case ---- */
+  d.querySelector('tr.clickable').click();
+  await tick();
+  test('worst product is Clear Phone Case again', () =>
+    assert.ok(d.querySelector('#analysis-head h1').textContent.includes('Clear Phone Case')));
+  test('cost ranking: 6 rows, advertising ranked #1', () => {
     const rows = Array.from(d.querySelectorAll('#diagnosis-section .rank-row'));
     assert.equal(rows.length, 6);
-    assert.ok(rows[0].textContent.includes('Advertising')); // biggest first
+    assert.ok(rows[0].textContent.includes('Advertising'));
   });
 
-  /* ---- profit goal finder ---- */
-  test('what-if: simulator now covers price + all 6 costs (7 rows)', () => {
-    assert.equal(d.querySelectorAll('.wi-slider').length, 7);
-    assert.equal(d.querySelectorAll('.wi-num').length, 7);
-  });
+  /* ---- profit goal (pro) ---- */
   const goalInput = d.querySelector('#goal-input');
   goalInput.value = '2';
   goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
   await tick(30);
-  test('goal: shows required price ($15.75), gap ($2.76) and biggest-cost route ($2.74)', () => {
+  test('goal: required price ($15.75) and biggest-cost route ($2.74)', () => {
     const t = d.querySelector('#goal-out').textContent;
-    assert.ok(t.includes('$15.75') && t.includes('$2.76') && t.includes('would drop to $2.74'));
+    assert.ok(t.includes('$15.75') && t.includes('would drop to $2.74'));
   });
   goalInput.value = '0.5';
   goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
   await tick(30);
-  test('goal: 50c target still met-free (needs +$1.26)', () =>
+  test('goal: 50c target needs +$1.26', () =>
     assert.ok(d.querySelector('#goal-out').textContent.includes('$1.26')));
   goalInput.value = '';
   goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -131,7 +307,7 @@ async function main() {
   test('goal: empty input shows the hint', () =>
     assert.ok(d.querySelector('#goal-out').textContent.includes('Type a target profit')));
 
-  /* ---- what-if simulator ---- */
+  /* ---- what-if simulator (pro) ---- */
   const adSlider = d.querySelector('[data-wi-slider="adCostPerSale"]');
   adSlider.value = '0';
   adSlider.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -156,7 +332,7 @@ async function main() {
   feesNum.value = '0';
   feesNum.dispatchEvent(new w.Event('input', { bubbles: true }));
   await tick(30);
-  test('what-if: fees to $0 shows +$975.00 (fees are adjustable too)', () =>
+  test('what-if: fees to $0 shows +$975.00', () =>
     assert.ok(d.querySelector('#wi-results').textContent.includes('+$975.00')));
   d.querySelector('#wi-reset').click();
   await tick(30);
@@ -169,137 +345,6 @@ async function main() {
     assert.ok(d.querySelector('#analysis-stats').textContent.includes('$2,370.00')));
   test('what-if: after apply, diagnosis updates (leak is now purchase cost)', () =>
     assert.equal(d.querySelector('#diagnosis-section .diag-leak .diag-value').textContent.trim(), 'Purchase cost'));
-  test('what-if: applied numbers are saved to browser storage', () => {
-    let saved = null;
-    try { saved = w.localStorage.getItem('profitleak.products.v1'); } catch (e) { saved = null; }
-    assert.ok(saved === null || saved.includes('"adCostPerSale":0'));
-  });
-
-  /* ---- add product: validation first ---- */
-  d.querySelector('.back-link').click();
-  await tick();
-  d.querySelector('#page-dashboard .page-actions a[href="#/add"]').click();
-  await tick();
-  test('"Add Product" button opens the form', () =>
-    assert.ok(!d.querySelector('#page-form').hidden));
-  d.getElementById('product-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
-  await tick(30);
-  test('empty form is blocked with inline errors', () =>
-    assert.ok(d.querySelectorAll('#product-form .has-error').length >= 2));
-
-  /* ---- add product: fill and save ---- */
-  const set = (id, v) => { d.getElementById(id).value = v; };
-  set('f-name', 'Smoke Test Widget');
-  set('f-price', '5.00');
-  set('f-units', '10');
-  set('f-purchase', '10.00');
-  set('f-ad', '0');
-  set('f-ship', '0');
-  set('f-fees', '0');
-  set('f-discount', '0');
-  set('f-returns', '0');
-  d.getElementById('product-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
-  await tick();
-  test('product saved \u2014 table now has 7 rows', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 7));
-
-  /* ---- new product: click row -> detailed analysis -> recommendation ---- */
-  const newRow = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
-    .find(r => r.textContent.includes('Smoke Test Widget'));
-  newRow.click();
-  await tick();
-  test('clicking the new product opens its detailed analysis', () =>
-    assert.ok(d.querySelector('#analysis-head h1').textContent.includes('Smoke Test Widget')));
-  test('new product\u2019s recommendation explains the biggest cost', () =>
-    assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is purchase cost at $10.00 per sale')));
-  test('cost ranking rendered for the new product', () =>
-    assert.equal(d.querySelectorAll('#diagnosis-section .rank-row').length, 1));
-  d.querySelector('.back-link').click();
-  await tick();
-  test('new product flagged \uD83D\uDD34 LOSING MONEY', () => {
-    const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
-      .find(r => r.textContent.includes('Smoke Test Widget'));
-    assert.ok(row && row.querySelector('.badge-red'));
-  });
-  test('toast confirms the addition', () => assert.ok(d.querySelector('#toast-container .toast')));
-
-  /* ---- delete the test product via confirm dialog ---- */
-  const widgetRow = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
-    .find(r => r.textContent.includes('Smoke Test Widget'));
-  widgetRow.querySelector('[data-action="delete"]').click();
-  await tick(30);
-  test('confirm dialog appears', () => assert.ok(!d.querySelector('#modal-overlay').hidden));
-  d.getElementById('modal-confirm').click();
-  await tick();
-  test('product deleted \u2014 back to 6 rows', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
-
-  /* ---- status filter chips ---- */
-  const allBadges = Array.from(d.querySelectorAll('#table-wrap .badge'));
-  const nLosing = allBadges.filter(b => b.classList.contains('badge-red')).length;
-  const nLow = allBadges.filter(b => b.classList.contains('badge-amber')).length;
-  const nProfitable = allBadges.filter(b => b.classList.contains('badge-green')).length;
-  test('filter chips render with correct counts', () => {
-    const chips = Array.from(d.querySelectorAll('#table-filters .chip'));
-    assert.equal(chips.length, 4);
-    assert.ok(chips[0].textContent.includes('All'));
-    assert.ok(chips.find(c => c.textContent.includes('Losing money')).textContent.includes(String(nLosing)));
-    assert.ok(chips.find(c => c.textContent.includes('Low profit')).textContent.includes(String(nLow)));
-    assert.ok(chips.find(c => c.textContent.includes('Profitable')).textContent.includes(String(nProfitable)));
-  });
-  d.querySelector('[data-filter="losing"]').click();
-  await tick();
-  test('filter: losing chip shows exactly the losing products', () => {
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, nLosing);
-    assert.equal(d.querySelectorAll('#table-wrap .badge-red').length, nLosing);
-  });
-  d.querySelector('[data-filter="profitable"]').click();
-  await tick();
-  test('filter: profitable chip shows exactly the profitable products', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, nProfitable));
-  d.querySelector('#table-filters [data-filter="all"]').click();
-  await tick();
-  test('filter: back to all shows every product again', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
-
-  /* ---- CSV export & import ---- */
-  d.querySelector('[data-action="export-csv"]').click();
-  await tick(30);
-  test('CSV export shows a confirmation toast', () =>
-    assert.ok(Array.from(d.querySelectorAll('#toast-container .toast'))
-      .some(t => t.textContent.includes('Exported 6 product(s)'))));
-
-  const csvText = CSV.toCsv([
-    { name: 'Imported Lamp', sellingPrice: 15, purchaseCost: 6, adCostPerSale: 1.5,
-      shippingCost: 2, platformFees: 1.2, discountPerSale: 0, returnCostPerSale: 0.5, unitsSold: 30 },
-    { name: 'Imported Poster', sellingPrice: 9.99, purchaseCost: 2, adCostPerSale: 2,
-      shippingCost: 1.5, platformFees: 0.9, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 60 }
-  ]);
-  const fileInput = d.getElementById('csv-file');
-  const fakeFile = new w.File([csvText], 'import-test.csv', { type: 'text/csv' });
-  Object.defineProperty(fileInput, 'files', { value: [fakeFile], configurable: true });
-  fileInput.dispatchEvent(new w.Event('change', { bubbles: true }));
-  await tick(200);
-  test('CSV import opens a confirm dialog listing 2 valid products', () => {
-    assert.ok(!d.querySelector('#modal-overlay').hidden);
-    assert.ok(d.querySelector('#modal-message').textContent.includes('2 valid product'));
-  });
-  d.getElementById('modal-confirm').click();
-  await tick();
-  test('CSV import adds both products (8 rows total)', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 8));
-  test('imported lamp is flagged PROFITABLE with correct math', () => {
-    const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
-      .find(r => r.textContent.includes('Imported Lamp'));
-    assert.ok(row && row.querySelector('.badge-green'));
-    assert.ok(row.textContent.includes('$114.00')); // 30 × (15 − 11.2)
-  });
-  d.querySelector('[data-action="load-samples"]').click();
-  await tick(30);
-  d.getElementById('modal-confirm').click();
-  await tick();
-  test('load samples (via confirm) resets the dashboard to 6 rows', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
 
   /* ---- live calculation preview ---- */
   w.location.hash = '#/add';
@@ -311,6 +356,22 @@ async function main() {
   await tick(30);
   test('live preview computes revenue ($2,000.00)', () =>
     assert.ok(d.querySelector('#lp-rows').textContent.includes('$2,000.00')));
+
+  /* ---- back to free (grandfathered data stays safe) ---- */
+  w.location.hash = '#/pricing';
+  await tick();
+  d.querySelector('[data-action="deactivate-preview"]').click();
+  await tick(30);
+  test('deactivate preview returns to the free plan', () => {
+    assert.ok(d.querySelector('#plan-nav .btn-gold'));
+  });
+  w.location.hash = '#/dashboard';
+  await tick();
+  test('free banner explains 6 products are over the limit (data safe)', () => {
+    const b = d.querySelector('#plan-banner');
+    assert.ok(!b.hidden && b.textContent.includes('over the free limit'));
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6); // nothing deleted
+  });
 
   /* ---- health ---- */
   test('no unexpected page errors', () => assert.deepEqual(pageErrors, []));

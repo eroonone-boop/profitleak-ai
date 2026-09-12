@@ -79,6 +79,44 @@
   var persistent = storageAvailable();
   var memory = null; // fallback used when localStorage is blocked
 
+  /* =============================================================
+     PLAN (FREE / PRO) — monetization layer (v1.4)
+     No authentication, no payments: the plan is a simple local
+     flag. Default: FREE (up to 3 products). PRO can be activated
+     as a free preview until the paid launch ("coming soon").
+     ============================================================= */
+  var PLAN_KEY = 'profitleak.plan.v1';
+  var FREE_PRODUCT_LIMIT = 3;
+  var FREE_SAMPLE_IDS = ['sample-earbuds', 'sample-speaker', 'sample-phone-case'];
+
+  var memoryPlan = 'free';
+
+  function readPlan() {
+    if (!persistent) return memoryPlan;
+    try {
+      return localStorage.getItem(PLAN_KEY) === 'pro' ? 'pro' : 'free';
+    } catch (e) {
+      return memoryPlan;
+    }
+  }
+
+  function writePlan(v) {
+    memoryPlan = (v === 'pro') ? 'pro' : 'free';
+    if (!persistent) return;
+    try { localStorage.setItem(PLAN_KEY, memoryPlan); } catch (e) { /* ignore */ }
+  }
+
+  var Plan = {
+    isPro: function () { return readPlan() === 'pro'; },
+    setPlan: function (v) { writePlan(v); },
+    freeLimit: function () { return FREE_PRODUCT_LIMIT; },
+    /** How many more products can be added on the current plan. */
+    freeSlotsFor: function (currentCount) {
+      if (Plan.isPro()) return Infinity;
+      return Math.max(0, FREE_PRODUCT_LIMIT - currentCount);
+    }
+  };
+
   /* ---------- Sanitize products loaded from storage ---------- */
   function num(v, fallback) {
     var n = Number(v);
@@ -116,6 +154,16 @@
   function samples() {
     return SAMPLE_PRODUCTS.map(function (p) {
       return Object.assign({}, p);
+    });
+  }
+
+  /* Sample set depends on the plan: FREE loads 3 illustrative
+     products (profitable / low / losing); PRO loads all 6. */
+  function samplesForPlan() {
+    var all = samples();
+    if (Plan.isPro()) return all;
+    return all.filter(function (p) {
+      return FREE_SAMPLE_IDS.indexOf(p.id) !== -1;
     });
   }
 
@@ -256,25 +304,26 @@
     /** Load products; seeds sample data on very first visit. */
     load: function () {
       if (!persistent) {
-        return memory ? memory.slice() : samples();
+        return memory ? memory.slice() : samplesForPlan();
       }
       try {
         var raw = localStorage.getItem(STORAGE_KEY);
         if (raw !== null) {
           var arr = JSON.parse(raw);
-          if (!Array.isArray(arr)) return samples();
+          if (!Array.isArray(arr)) return samplesForPlan();
           return arr.map(sanitizeProduct).filter(Boolean);
         }
         // No saved products yet: seed samples on the very first visit only.
+        // (3 products on the FREE plan, all 6 on PRO)
         if (!localStorage.getItem(SEED_KEY)) {
-          var seeded = samples();
+          var seeded = samplesForPlan();
           localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
           localStorage.setItem(SEED_KEY, '1');
           return seeded;
         }
         return []; // user cleared their data on a previous visit
       } catch (e) {
-        return samples();
+        return samplesForPlan();
       }
     },
 
@@ -288,15 +337,17 @@
     },
 
     samples: samples,
+    samplesForPlan: samplesForPlan,
     uid: uid
   };
 
   global.PL_STORE = Store;
   global.PL_CSV = CSV;
+  global.PL_PLAN = Plan;
 
   /* Node.js export (used by the automated tests) */
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV };
+    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV, Plan: Plan };
   }
 
 })(typeof window !== 'undefined' ? window : globalThis);

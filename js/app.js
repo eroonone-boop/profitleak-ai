@@ -10,6 +10,7 @@
   var Store = window.PL_STORE;
   var Charts = window.PL_CHARTS;
   var CSV = window.PL_CSV;
+  var Plan = window.PL_PLAN;
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -71,6 +72,7 @@
     if (!h || h === '/') return { page: 'landing' };
     var parts = h.split('/').filter(Boolean);
     if (parts[0] === 'dashboard') return { page: 'dashboard' };
+    if (parts[0] === 'pricing') return { page: 'pricing' };
     if (parts[0] === 'add') return { page: 'form', mode: 'add' };
     if (parts[0] === 'edit') return parts[1] ? { page: 'form', mode: 'edit', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
     if (parts[0] === 'product') return parts[1] ? { page: 'analysis', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
@@ -87,12 +89,17 @@
 
     $$('.page').forEach(function (s) { s.hidden = true; });
     $('[data-nav="dashboard"]').classList.toggle('active', route.page === 'dashboard');
+    $('[data-nav="pricing"]').classList.toggle('active', route.page === 'pricing');
+    renderPlanNav();
 
     if (isLanding) {
       renderLandingExample();
     } else if (route.page === 'dashboard') {
       $('#page-dashboard').hidden = false;
       renderDashboard();
+    } else if (route.page === 'pricing') {
+      $('#page-pricing').hidden = false;
+      renderPricing();
     } else if (route.page === 'form') {
       $('#page-form').hidden = false;
       renderForm(route);
@@ -164,6 +171,9 @@
   function renderDashboard() {
     var s = CALC.summarizePortfolio(state.products);
     var T = CALC.THRESHOLDS.LOW_PROFIT_MARGIN_PCT;
+
+    /* ----- plan banner (free users) ----- */
+    renderPlanBanner();
 
     /* ----- KPI cards ----- */
     $('#kpi-grid').innerHTML = [
@@ -337,6 +347,29 @@
   function renderForm(route) {
     var form = $('#product-form');
     form.reset();
+    var upsell = $('#form-upsell');
+    var layout = $('.form-layout');
+
+    /* FREE plan: adding is blocked once the product limit is reached */
+    var blocked = route.mode === 'add' && !Plan.isPro() &&
+                  Plan.freeSlotsFor(state.products.length) <= 0;
+    if (blocked) {
+      layout.hidden = true;
+      upsell.hidden = false;
+      upsell.innerHTML =
+        '<div class="upsell-icon" aria-hidden="true">\uD83D\uDCB0</div>' +
+        '<h2>You\u2019ve reached the free plan limit</h2>' +
+        '<p class="upsell-text">The free plan holds <strong>' + Plan.freeLimit() +
+        ' products</strong>. Upgrade to Pro for <strong>unlimited products</strong>, the What-If Simulator, cost ranking and profit goals.</p>' +
+        '<div class="empty-actions">' +
+          '<a class="btn btn-primary btn-lg" href="#/pricing">Upgrade to Pro</a>' +
+          '<a class="btn btn-ghost" href="#/dashboard">Back to dashboard</a>' +
+        '</div>' +
+        '<p class="upsell-note">Pro launches at $9/month \u2014 until then you can activate free preview access.</p>';
+      return;
+    }
+    layout.hidden = false;
+    upsell.hidden = true;
 
     if (route.mode === 'edit') {
       var p = null;
@@ -465,6 +498,15 @@
 
   function onFormSubmit(e) {
     e.preventDefault();
+
+    /* FREE plan guard (the form is normally hidden at the limit) */
+    if (!state.editingId && !Plan.isPro() &&
+        Plan.freeSlotsFor(state.products.length) <= 0) {
+      toast('Free plan limit reached \u2014 upgrade to Pro to add more products.');
+      location.hash = '#/pricing';
+      return;
+    }
+
     var d = readForm();
     var errors = validateForm(d);
     showErrors(errors);
@@ -562,19 +604,33 @@
         '</div>';
     }).join('');
 
-    host.innerHTML =
-      '<div class="card diagnosis-card">' +
-        '<div class="diag-head">' +
-          '<h2 class="card-title"><span class="diag-icon" aria-hidden="true">\uD83D\uDD0D</span> Smart Profit Diagnosis</h2>' +
-          '<p class="card-sub">An automatic analysis of where your profit is going \u2014 calculated only from the numbers you entered.</p>' +
-        '</div>' +
-        '<div class="diag-grid">' + tiles + '</div>' +
-        '<p class="diag-sentence">' + esc(d.sentence) + '</p>' +
-        '<div class="rank-block">' +
+    var wiRows = WI_FIELDS.map(function (f) {
+      var v = p[f[0]];
+      return '<div class="wi-row">' +
+          '<div class="wi-info"><span class="wi-name">' + f[1] + '</span>' +
+            '<span class="wi-current">currently ' + fmtMoney(v) + '</span></div>' +
+          '<input type="range" class="wi-slider" data-wi-slider="' + f[0] +
+            '" min="0" max="' + wiNiceMax(v) + '" step="' + wiStep(v) + '" value="' + v +
+            '" aria-label="What-if: ' + f[1] + '">' +
+          '<input type="number" class="wi-num" data-wi-num="' + f[0] +
+            '" min="0" step="any" inputmode="decimal" value="' + v +
+            '" aria-label="What-if ' + f[1] + ' new value">' +
+        '</div>';
+    }).join('');
+
+    /* Pro sections are locked on the FREE plan */
+    var pro = Plan.isPro();
+
+    var rankSection = pro
+      ? '<div class="rank-block">' +
           '<p class="rank-block-title">Cost ranking \u2014 highest to lowest</p>' +
           Charts.costRanking(p) +
-        '</div>' +
-        '<div class="wi-block">' +
+        '</div>'
+      : proLocked('Cost ranking is a Pro feature',
+          'See all six costs ranked from highest to lowest \u2014 and find exactly where your money goes.');
+
+    var wiSection = pro
+      ? '<div class="wi-block">' +
           '<div class="wi-head">' +
             '<div>' +
               '<h3 class="wi-title">\u201CWhat if I change this?\u201D</h3>' +
@@ -587,8 +643,12 @@
           '</div>' +
           '<div class="wi-rows">' + wiRows + '</div>' +
           '<div class="wi-results" id="wi-results"></div>' +
-        '</div>' +
-        '<div class="goal-block">' +
+        '</div>'
+      : proLocked('The What-If Simulator is a Pro feature',
+          'Change your price or any cost and instantly see the profit impact \u2014 before you touch anything real.');
+
+    var goalSection = pro
+      ? '<div class="goal-block">' +
           '<div class="goal-head">' +
             '<label for="goal-input">\uD83C\uDFAF Profit goal \u2014 I want to earn</label>' +
             '<span class="goal-input-wrap">' +
@@ -598,11 +658,25 @@
             '</span>' +
           '</div>' +
           '<div class="goal-out" id="goal-out"></div>' +
+        '</div>'
+      : proLocked('The Profit Goal planner is a Pro feature',
+          'Set a target profit per sale and get the exact price or cost cut that reaches it.');
+
+    host.innerHTML =
+      '<div class="card diagnosis-card">' +
+        '<div class="diag-head">' +
+          '<h2 class="card-title"><span class="diag-icon" aria-hidden="true">\uD83D\uDD0D</span> Smart Profit Diagnosis</h2>' +
+          '<p class="card-sub">An automatic analysis of where your profit is going \u2014 calculated only from the numbers you entered.</p>' +
         '</div>' +
+        '<div class="diag-grid">' + tiles + '</div>' +
+        '<p class="diag-sentence">' + esc(d.sentence) + '</p>' +
+        rankSection + wiSection + goalSection +
       '</div>';
 
-    wireWhatIf(p);
-    wireGoal(p, m);
+    if (pro) {
+      wireWhatIf(p);
+      wireGoal(p, m);
+    }
   }
 
   /* ---------- profit goal finder ---------- */
@@ -898,7 +972,7 @@
     }
     proceed.then(function (ok) {
       if (!ok) return;
-      state.products = Store.samples();
+      state.products = Store.samplesForPlan();
       persist();
       render();
       toast('Sample products loaded \u2713');
@@ -954,19 +1028,37 @@
             '\u201D. The file needs a header row with at least: Name, Selling Price, Units Sold.');
       return;
     }
+
+    /* FREE plan: only room for a few more products */
+    var slots = Plan.freeSlotsFor(state.products.length);
+    if (slots <= 0) {
+      confirmDialog({
+        title: 'Free plan limit reached',
+        message: 'Your free plan holds ' + Plan.freeLimit() +
+                 ' products. Upgrade to Pro for unlimited products and imports.',
+        confirmText: 'See pricing'
+      }).then(function (ok) { if (ok) location.hash = '#/pricing'; });
+      return;
+    }
+    var importable = Math.min(res.products.length, slots);
+    var capped = res.products.length > importable;
+
     var msg = 'Found ' + res.products.length + ' valid product(s)' +
       (res.skipped ? ' and skipped ' + res.skipped + ' invalid row(s)' : '') +
-      ' in \u201C' + fileName + '\u201D. Add them to your dashboard?';
+      ' in \u201C' + fileName + '\u201D.' +
+      (capped ? ' Your free plan has room for ' + importable + ' more \u2014 the rest will be skipped.' : '') +
+      ' Add them to your dashboard?';
     confirmDialog({
       title: 'Import products from CSV',
       message: msg,
-      confirmText: 'Add ' + res.products.length + ' product' + (res.products.length > 1 ? 's' : '')
+      confirmText: 'Add ' + importable + ' product' + (importable > 1 ? 's' : '')
     }).then(function (ok) {
       if (!ok) return;
-      state.products = state.products.concat(res.products);
+      state.products = state.products.concat(res.products.slice(0, importable));
       persist();
       render();
-      toast('Imported ' + res.products.length + ' product(s) \u2713');
+      toast('Imported ' + importable + ' product(s) \u2713' +
+            (capped ? ' \u2014 upgrade to Pro for unlimited imports.' : ''));
     });
   }
 
@@ -979,6 +1071,123 @@
     reader.onload = function () { importCsvText(String(reader.result), file.name); };
     reader.onerror = function () { toast('Could not read the file. Please try again.'); };
     reader.readAsText(file);
+  }
+
+  /* =============================================================
+     PLAN (FREE / PRO) — nav, banner, pricing page, upgrade dialog
+     ============================================================= */
+  function renderPlanNav() {
+    var host = $('#plan-nav');
+    if (!host) return;
+    host.innerHTML = Plan.isPro()
+      ? '<span class="pro-badge" title="Pro preview active \u2014 manage in Pricing">PRO</span>'
+      : '<a class="btn btn-gold btn-sm" href="#/pricing">\u26A1 Upgrade to Pro</a>';
+  }
+
+  function renderPlanBanner() {
+    var host = $('#plan-banner');
+    if (!host) return;
+    if (Plan.isPro()) { host.hidden = true; host.innerHTML = ''; return; }
+    var n = state.products.length;
+    var limit = Plan.freeLimit();
+    var usage = n > limit
+      ? n + ' products \u2014 over the free limit (everything stays safe)'
+      : n + ' of ' + limit + ' products used';
+    host.hidden = false;
+    host.innerHTML =
+      '<div class="free-banner">' +
+        '<div class="fb-text"><strong>\u26A1 Free plan</strong> \u00B7 ' + usage +
+        ' \u2014 Pro adds unlimited products, the What-If Simulator and cost ranking.</div>' +
+        '<a class="btn btn-light btn-sm" href="#/pricing">Upgrade to Pro</a>' +
+      '</div>';
+  }
+
+  /* Reusable locked panel shown to free users where Pro features live */
+  function proLocked(title, desc) {
+    return '<div class="pro-locked">' +
+             '<div class="pro-locked-icon" aria-hidden="true">\uD83D\uDD12</div>' +
+             '<div class="pro-locked-body">' +
+               '<h3>' + title + '</h3>' +
+               '<p>' + desc + '</p>' +
+               '<a class="btn btn-primary btn-sm" href="#/pricing">Upgrade to Pro</a>' +
+             '</div>' +
+           '</div>';
+  }
+
+  function renderPricing() {
+    var pro = Plan.isPro();
+
+    var freeFeats = [
+      ['check', 'Up to 3 products'],
+      ['check', 'True profit calculator \u2014 every cost counted'],
+      ['check', 'Basic profit diagnosis \u2014 biggest leak + action'],
+      ['check', 'Dashboard, product table & status filters'],
+      ['check', 'CSV export & import'],
+      ['check', 'Your data stays in your browser']
+    ];
+    var proFeats = [
+      ['check', 'Unlimited products'],
+      ['check', 'Advanced profit diagnosis'],
+      ['check', 'What-if simulator \u2014 test any change safely'],
+      ['check', 'Cost ranking \u2014 all six costs, biggest first'],
+      ['check', 'Profit goal planner \u2014 \u201Cwhat do I need to earn $X?\u201D'],
+      ['check', 'Advanced recommendations'],
+      ['soon', 'Amazon \u00B7 eBay \u00B7 Shopify integrations'],
+      ['check', 'Priority support']
+    ];
+
+    function featList(feats) {
+      return '<ul class="price-feats">' + feats.map(function (f) {
+        if (f[0] === 'soon') {
+          return '<li><span class="feat-soon">soon</span><span>' + f[1] + '</span></li>';
+        }
+        return '<li><span class="feat-check" aria-hidden="true">\u2713</span><span>' + f[1] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+
+    var freeBtn = pro
+      ? '<a class="btn btn-ghost btn-lg" href="#/dashboard">Back to dashboard</a>'
+      : '<span class="badge badge-green">Your current plan</span>';
+
+    var proBtn = pro
+      ? '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
+        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>'
+      : '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $9/month</button>' +
+        '<p class="price-note">No payment needed today \u00B7 Pro launches soon</p>';
+
+    $('#pricing-body').innerHTML =
+      '<div class="pricing-grid">' +
+        '<div class="price-card">' +
+          '<div class="price-name">FREE</div>' +
+          '<div class="price-value">$0</div>' +
+          '<p class="price-tag">For getting started</p>' +
+          featList(freeFeats) +
+          '<div class="price-actions">' + freeBtn + '</div>' +
+        '</div>' +
+        '<div class="price-card price-card-pro">' +
+          '<div class="price-ribbon">Most popular</div>' +
+          '<div class="price-name">PRO</div>' +
+          '<div class="price-value">$9<small>/month</small></div>' +
+          '<p class="price-tag">For serious online sellers</p>' +
+          featList(proFeats) +
+          '<div class="price-actions">' + proBtn + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="pricing-trust">No payment required today \u00B7 Cancel anytime \u00B7 Your data never leaves your browser</p>';
+  }
+
+  function showProComingSoon() {
+    confirmDialog({
+      title: 'Pro is coming soon \uD83D\uDE80',
+      message: 'Pro launches at $9/month with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until launch day, you can activate free preview access and use every Pro feature at no cost.',
+      confirmText: 'Activate free preview',
+      cancelText: 'Not now'
+    }).then(function (ok) {
+      if (!ok) return;
+      Plan.setPlan('pro');
+      render();
+      toast('Pro preview activated \u2014 every feature unlocked \u2713');
+    });
   }
 
   /* =============================================================
@@ -1028,6 +1237,7 @@
       $('#modal-title').textContent = opts.title || 'Are you sure?';
       $('#modal-message').textContent = opts.message || '';
       confirmBtn.textContent = opts.confirmText || 'Confirm';
+      cancelBtn.textContent = opts.cancelText || 'Cancel';
       confirmBtn.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
       overlay.hidden = false;
       document.body.classList.add('modal-open');
@@ -1071,6 +1281,12 @@
       else if (act === 'clear-all') { clearAllFlow(); }
       else if (act === 'export-csv') { exportCsv(); }
       else if (act === 'import-csv') { $('#csv-file').click(); }
+      else if (act === 'upgrade') { showProComingSoon(); }
+      else if (act === 'deactivate-preview') {
+        Plan.setPlan('free');
+        render();
+        toast('Switched back to the Free plan \u2014 your products are safe.');
+      }
       return;
     }
 

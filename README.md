@@ -23,12 +23,37 @@ No signup. No backend. Your data is stored locally in your browser.
 | 💡 **Recommendations** | Names the biggest cost causing each loss, with exact amounts, break-even prices and avoidable losses from *your* numbers |
 | 🥇 **Cost ranking** | Every product's costs ranked biggest-first — the #1 leak is highlighted |
 | 🩺 **Smart Profit Diagnosis** | Names your biggest profit leak with its exact **share of total costs**, a practical action, and a plain-English diagnosis sentence |
-| 🎛️ **What-If Simulator** | Drag sliders for price, ads, purchase & shipping — instantly see the profit impact ("improves by $X" / "reduces by $Y"), then apply with one click |
+| 🎛️ **What-If Simulator** | Sliders for the price **and all six costs** — instantly see the profit impact ("improves by $X" / "reduces by $Y"), then apply with one click |
+| 🎯 **Profit Goal** | Type a target profit per sale and see the exact price to charge or cost cut that reaches it |
 | 📋 **Product table** | Sortable, with clear statuses: 🟢 PROFITABLE · 🟡 LOW PROFIT · 🔴 LOSING MONEY |
+| 🔎 **Status filters** | All / Losing money / Low profit / Profitable, with live counts |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |
+| 📤 **CSV export & import** | Back up your products or bring them in from a spreadsheet — with full validation |
+| 💳 **FREE + PRO plans** | Free tier (3 products, basic diagnosis) + Pro tier (unlimited products, simulator, cost ranking, profit goals) with a pricing page — no payments connected yet |
 | 📱 **Responsive** | Works on desktop, tablet and mobile |
-| 💾 **Local data** | Stored in your browser (localStorage) + 6 sample products pre-loaded |
+| 💾 **Local data** | Stored in your browser (localStorage); sample products on first launch |
+
+## 💳 Pricing (FREE + PRO)
+
+ProfitLeak AI ships with a ready-to-monetize plan structure (v1.4). No authentication
+and no payment provider are connected yet — by design.
+
+| | FREE | PRO ($9/month at launch) |
+|---|---|---|
+| Products | Up to 3 | Unlimited |
+| True profit calculator | ✅ | ✅ |
+| Basic diagnosis (biggest leak + action) | ✅ | ✅ |
+| Dashboard, table, filters, CSV | ✅ | ✅ |
+| Advanced diagnosis + cost ranking | 🔒 | ✅ |
+| What-If Simulator + Profit Goal | 🔒 | ✅ |
+| Marketplace integrations | — | 🔜 coming soon |
+
+- The plan is a local flag (`profitleak.plan.v1` in localStorage) — no accounts needed.
+- **Upgrade to Pro** buttons open a "Pro is coming soon" dialog which also offers
+  **free preview access**, so every feature stays usable until the paid launch.
+- Users who exceed the free limit keep their data — adding is simply gated.
+- New free users start with 3 sample products (one 🟢, one 🟡, one 🔴); Pro loads all 6.
 
 ## 🚀 How to run it
 
@@ -96,6 +121,7 @@ profitleak-ai/
 ├── tests/
 │   ├── calc.test.js        ← engine tests (run: node tests/calc.test.js)
 │   ├── csv.test.js         ← CSV export/import tests
+│   ├── plan.test.js        ← FREE/PRO plan tests
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -107,16 +133,18 @@ profitleak-ai/
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + full app click-through tests
+npm test               # engine + CSV + plan + full app click-through tests (194 total)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
+npm run test:plan      # FREE/PRO plan tests (zero dependencies)
 ```
 
 The engine tests verify every formula and recommendation against hand-calculated
-values; the CSV tests verify round-trips, quoting and validation; the smoke test
-loads the real app headlessly and walks the whole journey: landing → dashboard →
-analysis → diagnosis → goal → simulator → filters → CSV import/export → add →
-validate → save → delete → live preview.
+values; the CSV tests verify round-trips, quoting and validation; the plan tests
+verify the free limit and plan switching; the smoke test loads the real app
+headlessly and walks the whole monetization journey: free user (3 products,
+locked Pro features) → pricing → upgrade ("coming soon" + preview) → full Pro
+experience → back to free with data intact.
 
 ## 🛠 Rebuild the single-file version
 

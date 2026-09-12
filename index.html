@@ -31,7 +31,10 @@
         <svg class="brand-mark" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><rect width="24" height="24" rx="7" fill="url(#plg)"/><path d="M12 5.2l4.7 4.7a6.65 6.65 0 1 1-9.4 0z" fill="#fff"/></svg>
         <span class="brand-name">ProfitLeak&nbsp;<span class="brand-ai">AI</span></span>
       </a>
-      <a class="btn btn-primary" href="#/dashboard">Analyze My Products</a>
+      <div class="landing-nav-right">
+        <a class="landing-nav-link" href="#/pricing">Pricing</a>
+        <a class="btn btn-primary" href="#/dashboard">Analyze My Products</a>
+      </div>
     </div>
   </nav>
 
@@ -137,10 +140,12 @@
       </a>
       <nav class="topbar-nav" aria-label="Main">
         <a class="nav-link" href="#/dashboard" data-nav="dashboard">Dashboard</a>
+        <a class="nav-link" href="#/pricing" data-nav="pricing">Pricing</a>
         <a class="btn btn-primary btn-sm" href="#/add">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Add Product
         </a>
+        <span id="plan-nav"></span>
       </nav>
     </div>
   </header>
@@ -166,6 +171,7 @@
         </div>
       </div>
 
+      <div id="plan-banner"></div>
       <div class="kpi-grid" id="kpi-grid"></div>
       <div class="alerts" id="alerts"></div>
 
@@ -212,6 +218,8 @@
           <a class="btn btn-ghost" href="#/dashboard">← Back to dashboard</a>
         </div>
       </div>
+
+      <div id="form-upsell" class="card upsell-card" hidden></div>
 
       <div class="form-layout">
         <form id="product-form" class="card form-card" novalidate autocomplete="off">
@@ -327,6 +335,20 @@
           <ol class="recs" id="analysis-recs"></ol>
         </div>
       </div>
+    </section>
+
+    <!-- ============ PRICING ============ -->
+    <section id="page-pricing" class="page" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Simple pricing</h1>
+          <p class="page-sub">Start free. Upgrade when you&rsquo;re serious about profit.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="#/dashboard">&#8592; Back to dashboard</a>
+        </div>
+      </div>
+      <div id="pricing-body"></div>
     </section>
 
   </main>
