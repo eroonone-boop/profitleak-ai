@@ -178,7 +178,7 @@ profitleak-ai/
 │   ├── plan.test.js        ← FREE/PRO plan tests
 │   ├── report.test.js      ← Profit Report tests
 │   ├── audit.test.js      ← full quality & reliability audit (187 checks)
-│   ├── e2e.test.js        ← deployment end-to-end journey (40 checks)
+│   ├── e2e.test.js        ← deployment end-to-end journey (43 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -186,7 +186,7 @@ profitleak-ai/
 └── README.md
 ```
 
-## 🔍 Quality & Reliability Audit (v1.7.1 → v1.7.4, four rounds)
+## 🔍 Quality & Reliability Audit (v1.7.1 → v1.7.5, five rounds)
 
 Four full independent audit passes over the entire application — **187 audit + 40
 end-to-end checks** (`npm run test:audit`, `npm run test:e2e`), all green, on top of the
@@ -247,8 +247,14 @@ Fixes made during the audit (no features changed):
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # everything below — 500 checks total, all green
-npm run test:audit    # quality & reliability audit (187 checks)
+npm test               # everything below — 503 checks total, all green
+npm run test:audit    # quality & reliability audit (187 checks
+- **Round 5 / final pre-deployment pass (v1.7.5)** — rapid double-submit of the
+  product form (stuck Enter / double-firing input) created duplicate products;
+  the form now locks after one successful save and unlocks when reopened. Print
+  output (Ctrl+P from any page) no longer includes buttons, filter chips, help
+  toggles or the table toolbar. Storage capacity (500 products = 132 KB) and
+  browser back/forward navigation verified)
 npm run test:e2e      # deployment end-to-end journey (40 checks)
 npm run test:audit    # quality & reliability audit only (143 checks)
 npm run test:calc      # engine tests only (zero dependencies)

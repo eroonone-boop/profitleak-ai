@@ -1776,6 +1776,21 @@ th.num, td.num { text-align: right; }
   .welcome-overlay,
   #plan-banner { display: none !important; }
 
+  /* interactive chrome never belongs on paper (also when the user
+     presses Ctrl+P outside the report page) */
+  .table-tools,
+  .table-filters,
+  .chip,
+  .help-btn,
+  .help-box,
+  .btn,
+  .btn-view,
+  .icon-btn,
+  .link-btn,
+  .back-link,
+  .wi-slider,
+  .wi-num { display: none !important; }
+
   .app-main { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 
   .report-doc {

@@ -305,6 +305,32 @@ async function main() {
     assert.ok(/\.wi-num\s*{[^}]*font-size:\s*16px/.test(CSS_TEXT), '.wi-num 16px');
     assert.ok(/#goal-input\s*{[^}]*font-size:\s*16px/.test(CSS_TEXT), '#goal-input 16px');
   });
+  test('print CSS hides interactive chrome everywhere (Ctrl+P from any page)', () => {
+    const m = CSS_TEXT.match(/@media print\s*{([\s\S]*)}/);
+    assert.ok(m, 'print block exists');
+    ['.table-tools', '.table-filters', '.help-btn', '.btn', '.btn-view', '.wi-slider'].forEach(sel =>
+      assert.ok(m[1].includes(sel), sel + ' hidden in print'));
+  });
+
+  /* ============ 12. RAPID DOUBLE-SUBMIT (deployment hardening) ============ */
+  console.log('\n\u2500\u2500 12. Rapid double-submit \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+  await go('#/add');
+  set('f-name', 'Double Submit Guard'); set('f-price', '22'); set('f-units', '15');
+  set('f-purchase', '9');
+  const fire = () => d.getElementById('product-form')
+    .dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
+  fire(); fire(); fire(); // stuck Enter key / double-firing input device
+  await tick(90);
+  test('triple-firing the save button creates exactly ONE product', () => {
+    assert.equal(storage().filter(pr => pr.name === 'Double Submit Guard').length, 1);
+    assert.equal(storage().length, 11);
+  });
+  await go('#/add'); // reopening the form must clear the lock
+  set('f-name', 'After Unlock'); set('f-price', '10'); set('f-units', '5'); set('f-purchase', '2');
+  fire(); await tick(90);
+  test('the form unlocks again on the next visit', () =>
+    assert.equal(storage().filter(pr => pr.name === 'After Unlock').length, 1));
+
   test('help buttons are real buttons (touch-friendly, no hover-only UI)', () => {
     const btns = d.querySelectorAll('#kpi-grid .help-btn');
     assert.ok(btns.length >= 5);
@@ -316,8 +342,8 @@ async function main() {
     if (PAGE_ERRORS.length) console.error('        page errors: ' + PAGE_ERRORS.slice(0, 5).join(' | '));
     assert.equal(PAGE_ERRORS.length, 0);
   });
-  test('final state persisted (10 products = 4 real + 6 demo)', () =>
-    assert.equal(storage().length, 10));
+  test('final state persisted (12 products = 6 real + 6 demo)', () =>
+    assert.equal(storage().length, 12));
 
   dom.window.close();
 

@@ -63,6 +63,11 @@
     sort: { key: 'trueProfit', dir: 'asc' } // worst profit first by default
   };
 
+  /* Set after a successful save and cleared whenever the form route is
+     opened again. A rapid double-submit (stuck Enter key, double-firing
+     assistive tech) must never create the same product twice. */
+  var formLocked = false;
+
   function persist() { Store.save(state.products); }
 
   /* =============================================================
@@ -383,6 +388,7 @@
   function renderForm(route) {
     var form = $('#product-form');
     form.reset();
+    formLocked = false; // reopening the form unlocks saving
     var upsell = $('#form-upsell');
     var layout = $('.form-layout');
 
@@ -534,6 +540,7 @@
 
   function onFormSubmit(e) {
     e.preventDefault();
+    if (formLocked) return; // ignore rapid double-submits of the same save
 
     /* FREE plan guard (the form is normally hidden at the limit) */
     if (!state.editingId && !Plan.isPro() &&
@@ -564,6 +571,7 @@
       persist();
       toast('\u201C' + esc(d.name) + '\u201D added \u2713');
     }
+    formLocked = true; // one save per form visit — no duplicates
     location.hash = '#/dashboard';
   }
 
