@@ -80,6 +80,11 @@ test('rec: avoidable losses quoted ($380.00)', () => assert.ok(phoneRecs.include
 test('rec: break-even price quoted ($13.75)', () => assert.ok(phoneRecs.includes('to $13.75')));
 test('rec: includes the ad-cut advice sentence', () =>
   assert.ok(phoneRecs.includes('Consider reducing advertising cost, increasing the selling price, or reducing the purchase cost.')));
+test('rec: names the biggest cost causing the loss (advertising)', () =>
+  assert.ok(phoneRecs.includes('The biggest cost causing this loss is advertising at $5.50 per sale') &&
+            phoneRecs.includes('42% of your selling price') && phoneRecs.includes('$2,750.00 across all 500 units')));
+test('rec: fastest fix quantified (cut ads by $0.76 to break even)', () =>
+  assert.ok(phoneRecs.includes('The fastest fix: cut advertising by $0.76 per sale (to $4.74) and you break even')));
 
 const yoga = byName('Eco Yoga Mat');
 const ym = calc.computeMetrics(yoga);
@@ -97,6 +102,56 @@ test('rec: biggest cost called out (shipping 33% for candle)', () => assert.ok(c
 
 const earbudsRecs = calc.buildRecommendations(byName('Wireless Earbuds Pro'), em, []).join('\n');
 test('rec: healthy product quotes per-sale profit', () => assert.ok(earbudsRecs.includes('$10.49 per sale')));
+test('rec: healthy product still names its biggest cost + upside', () =>
+  assert.ok(earbudsRecs.includes('Your biggest cost is purchase cost at $18.50 per sale (37% of your price)') &&
+            earbudsRecs.includes('would add about $592.00 in profit across your 320 units')));
+
+/* ---------- 6b) Biggest-cost edge cases & one-line recommendations ---------- */
+const spread = { sellingPrice: 5, purchaseCost: 2, adCostPerSale: 1.5, shippingCost: 1.5,
+  platformFees: 1, discountPerSale: 1, returnCostPerSale: 1, unitsSold: 1 };
+const spreadM = calc.computeMetrics(spread);
+const spreadRecs = calc.buildRecommendations(spread, spreadM, calc.detectIssues(spread, spreadM)).join('\n');
+test('rec: honest when the biggest cost alone can\u2019t fix the loss', () =>
+  assert.ok(spreadRecs.includes('Even cutting purchase cost to $0.00 would still leave you losing $1.00 per sale') &&
+            spreadRecs.includes('price increase to $8.00')));
+
+test('short rec: losing product names biggest cost', () => {
+  const r = calc.shortRecommendation(phone, pm);
+  assert.ok(r.includes('Losing $0.76/sale') && r.includes('Biggest cost: advertising \u2014 42% of price'));
+});
+test('short rec: low-margin product names biggest cost', () => {
+  const r = calc.shortRecommendation(yoga, ym);
+  assert.ok(r.includes('Thin 2.6% margin') && r.includes('Biggest cost: purchase cost \u2014 33% of price'));
+});
+test('short rec: healthy product', () =>
+  assert.ok(calc.shortRecommendation(byName('Wireless Earbuds Pro'), em).includes('Healthy 21% margin after all costs')));
+
+const pure = { sellingPrice: 10, purchaseCost: 0, adCostPerSale: 0, shippingCost: 0,
+  platformFees: 0, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 10 };
+const pureM = calc.computeMetrics(pure);
+test('edge: zero-cost product keeps 100% margin', () =>
+  assert.ok(near(pureM.trueProfit, 100) && near(pureM.profitMargin, 100) && calc.getStatus(pureM) === 'PROFITABLE'));
+test('edge: zero-cost product has no biggest cost', () => assert.equal(calc.biggestCost(pure), null));
+test('edge: zero-cost product still gets a recommendation', () =>
+  assert.ok(calc.buildRecommendations(pure, pureM, []).length >= 1));
+
+/* ---------- 6c) Arithmetic identities on extra number vectors ---------- */
+const vectors = [
+  [19.99, 7.25, 3.10, 2.47, 2.99, 1.50, 0.80, 37],
+  [249.00, 101.11, 22.20, 14.00, 31.06, 10.00, 6.40, 3],
+  [0.99, 0.30, 0.20, 0.15, 0.12, 0.05, 0.02, 9999]
+];
+vectors.forEach((v, i) => {
+  const p = { sellingPrice: v[0], purchaseCost: v[1], adCostPerSale: v[2], shippingCost: v[3],
+              platformFees: v[4], discountPerSale: v[5], returnCostPerSale: v[6], unitsSold: v[7] };
+  const m = calc.computeMetrics(p);
+  test('vector ' + i + ': total cost equals sum of all six parts', () =>
+    assert.ok(near(m.totalCost, m.purchaseTotal + m.adTotal + m.shippingTotal + m.feesTotal + m.discountTotal + m.returnsTotal, 1e-9)));
+  test('vector ' + i + ': true profit = revenue \u2212 total cost', () =>
+    assert.ok(near(m.trueProfit, m.revenue - m.totalCost, 1e-9)));
+  test('vector ' + i + ': per-unit profit \u00D7 units = true profit', () =>
+    assert.ok(near(m.profitPerUnit * p.unitsSold, m.trueProfit, 1e-6)));
+});
 
 /* ---------- 7) Portfolio summary (dashboard KPIs) ---------- */
 const s = calc.summarizePortfolio(SAMPLE_PRODUCTS);

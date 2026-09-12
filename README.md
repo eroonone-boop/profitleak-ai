@@ -20,7 +20,8 @@ No signup. No backend. Your data is stored locally in your browser.
 | ➕ **Add product** | 9 fields: price, purchase cost, ads/sale, shipping, fees, discount, returns, units sold |
 | 🧮 **True profit engine** | Every cost is counted — never just "price minus product cost" |
 | 🚨 **Loss detection** | Flags losing products, thin margins, high ad / shipping / fee / discount / return costs |
-| 💡 **Recommendations** | Written from *your* numbers: break-even price, cost cuts, avoidable losses |
+| 💡 **Recommendations** | Names the biggest cost causing each loss, with exact amounts, break-even prices and avoidable losses from *your* numbers |
+| 🥇 **Cost ranking** | Every product's costs ranked biggest-first — the #1 leak is highlighted |
 | 📋 **Product table** | Sortable, with clear statuses: 🟢 PROFITABLE · 🟡 LOW PROFIT · 🔴 LOSING MONEY |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |

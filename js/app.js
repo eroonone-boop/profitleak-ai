@@ -269,9 +269,7 @@
   function rowHtml(row) {
     var p = row.p, m = row.m;
     var meta = STATUS_META[CALC.getStatus(m)];
-    var issues = CALC.detectIssues(p, m);
-    var recs = CALC.buildRecommendations(p, m, issues);
-    var rec0 = recs[0] || '';
+    var rec0 = CALC.shortRecommendation(p, m);
     var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
 
     return '<tr class="clickable" data-id="' + esc(p.id) + '" tabindex="0" role="button" ' +
@@ -538,7 +536,12 @@
 
     /* --- where are you losing money? --- */
     if (issues.length) {
-      $('#analysis-issues').innerHTML = issues.map(function (i) {
+      var rankBlock =
+        '<div class="rank-block">' +
+          '<p class="rank-block-title">Your costs, ranked — #1 is your biggest cost</p>' +
+          Charts.costRanking(p) +
+        '</div>';
+      $('#analysis-issues').innerHTML = rankBlock + issues.map(function (i) {
         var cls = i.severity === 'danger' ? 'finding-danger' : 'finding-warn';
         return '<div class="finding ' + cls + '">' +
                  '<span class="finding-icon" aria-hidden="true">' + (ISSUE_ICONS[i.type] || '\u26A0\uFE0F') + '</span>' +

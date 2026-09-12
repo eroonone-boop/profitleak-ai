@@ -54,9 +54,11 @@ async function main() {
   test('hero example computed live by the engine (\u2212$0.76)', () =>
     assert.ok(d.querySelector('#hero-example').textContent.includes('\u2212$0.76')));
 
-  /* ---- dashboard ---- */
-  w.location.hash = '#/dashboard';
+  /* ---- landing CTA → dashboard ---- */
+  d.querySelector('.hero-cta a[href="#/dashboard"]').click();
   await tick();
+  test('"Analyze My Products" opens the dashboard', () =>
+    assert.ok(!d.querySelector('#page-dashboard').hidden));
   test('6 KPI cards render', () => assert.equal(d.querySelectorAll('#kpi-grid .kpi').length, 6));
   test('6 sample products in the table', () => assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
   test('losing / low / profitable badges present', () => {
@@ -83,10 +85,21 @@ async function main() {
     assert.ok(d.querySelectorAll('#analysis-recs li').length >= 3));
   test('numbers table includes true-profit row', () => assert.ok(d.querySelector('#analysis-numbers .profit-row')));
   test('unit-economics stacked bar renders', () => assert.ok(d.querySelector('#analysis-bar .anatomy-track')));
+  test('cost ranking shows #1 biggest cost (advertising)', () => {
+    const first = d.querySelector('#analysis-issues .rank-row');
+    assert.ok(first && first.textContent.includes('Advertising'));
+    assert.ok(d.querySelector('#analysis-issues .rank-tag'));
+  });
+  test('recommendation names the biggest cost causing the loss', () =>
+    assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is advertising at $5.50 per sale')));
 
   /* ---- add product: validation first ---- */
-  w.location.hash = '#/add';
+  d.querySelector('.back-link').click();
   await tick();
+  d.querySelector('#page-dashboard .page-actions a[href="#/add"]').click();
+  await tick();
+  test('"Add Product" button opens the form', () =>
+    assert.ok(!d.querySelector('#page-form').hidden));
   d.getElementById('product-form').dispatchEvent(new w.Event('submit', { bubbles: true, cancelable: true }));
   await tick(30);
   test('empty form is blocked with inline errors', () =>
@@ -107,6 +120,20 @@ async function main() {
   await tick();
   test('product saved \u2014 table now has 7 rows', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 7));
+
+  /* ---- new product: click row -> detailed analysis -> recommendation ---- */
+  const newRow = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+    .find(r => r.textContent.includes('Smoke Test Widget'));
+  newRow.click();
+  await tick();
+  test('clicking the new product opens its detailed analysis', () =>
+    assert.ok(d.querySelector('#analysis-head h1').textContent.includes('Smoke Test Widget')));
+  test('new product\u2019s recommendation explains the biggest cost', () =>
+    assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is purchase cost at $10.00 per sale')));
+  test('cost ranking rendered for the new product', () =>
+    assert.equal(d.querySelectorAll('#analysis-issues .rank-row').length, 1));
+  d.querySelector('.back-link').click();
+  await tick();
   test('new product flagged \uD83D\uDD34 LOSING MONEY', () => {
     const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
       .find(r => r.textContent.includes('Smoke Test Widget'));

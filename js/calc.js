@@ -107,6 +107,14 @@
     });
   }
 
+  /* ---------- The single biggest cost (usually the main leak) ---------- */
+  function biggestCost(p) {
+    var ranked = costBreakdown(p)
+      .filter(function (c) { return c.perUnit > 0; })
+      .sort(function (a, b) { return b.perUnit - a.perUnit; });
+    return ranked.length ? ranked[0] : null;
+  }
+
   /* =============================================================
      3) LOSS DETECTION — find the leaks, with real numbers
      ============================================================= */
@@ -168,31 +176,53 @@
     // Price needed to reach a given margin at current costs: cost / (1 − margin)
     function priceForMargin(marginPct) { return m.totalCostPerUnit / (1 - marginPct / 100); }
 
+    var big = biggestCost(p);
+
     if (m.trueProfit < 0) {
       var gap = -m.profitPerUnit; // positive number
       recs.push('You lose ' + money(gap) + ' on every sale. At ' + m.units +
                 ' units sold, that is ' + money(m.trueProfit) + ' in total losses.');
-      recs.push('To break even you must either raise your price by ' + money(gap) +
-                ' per unit (to ' + money(p.sellingPrice + gap) + ') or cut your costs by ' +
-                money(gap) + ' per unit — advertising and shipping are usually the easiest places to start.');
+      if (big) {
+        recs.push('The biggest cost causing this loss is ' + big.label.toLowerCase() + ' at ' +
+                  money(big.perUnit) + ' per sale — ' + pct(big.shareOfPrice) +
+                  ' of your selling price, or ' + money(big.total) + ' across all ' + m.units + ' units sold.');
+        if (big.perUnit >= gap - 1e-9) {
+          recs.push('The fastest fix: cut ' + big.label.toLowerCase() + ' by ' + money(gap) +
+                    ' per sale (to ' + money(big.perUnit - gap) + ') and you break even — or raise your price to ' +
+                    money(p.sellingPrice + gap) + ' if that cost cannot be cut.');
+        } else {
+          recs.push('Even cutting ' + big.label.toLowerCase() + ' to $0.00 would still leave you losing ' +
+                    money(gap - big.perUnit) + ' per sale — combine cost cuts with a price increase to ' +
+                    money(p.sellingPrice + gap) + ' to break even.');
+        }
+      } else {
+        recs.push('To break even you must either raise your price by ' + money(gap) +
+                  ' per unit (to ' + money(p.sellingPrice + gap) + ') or cut your costs by ' +
+                  money(gap) + ' per unit.');
+      }
       recs.push('If you stop losing ' + money(gap) + ' per sale, at your current volume of ' +
                 m.units + ' units you avoid approximately ' + money(Math.abs(m.trueProfit)) + ' in losses.');
-      var bd = costBreakdown(p).slice().sort(function (a, b) { return b.perUnit - a.perUnit; });
-      if (bd[0] && bd[0].perUnit > 0) {
-        recs.push('Your biggest cost is ' + bd[0].label.toLowerCase() + ' at ' + money(bd[0].perUnit) +
-                  ' per unit (' + pct(bd[0].shareOfPrice) + ' of your price). Start there.');
-      }
     } else if (m.profitMargin < T) {
       var target = priceForMargin(T);
       var cutNeeded = m.totalCostPerUnit - p.sellingPrice * (1 - T / 100);
       recs.push('If you sell this product at the current price, your estimated profit is ' +
                 money(m.profitPerUnit) + ' per sale — a ' + pct1(m.profitMargin) + ' margin. That\u2019s thin.');
+      if (big) {
+        recs.push('Your biggest cost is ' + big.label.toLowerCase() + ' at ' + money(big.perUnit) +
+                  ' per sale (' + pct(big.shareOfPrice) + ' of your price). Cutting it by ' + money(cutNeeded) +
+                  ' per sale would lift your margin to ' + T + '%.');
+      }
       recs.push('To reach a ' + T + '% margin, either raise your price to about ' + money(target) +
                 ' or cut costs by about ' + money(cutNeeded) + ' per unit.');
     } else {
       recs.push('If you sell this product at the current price, your estimated profit is ' +
                 money(m.profitPerUnit) + ' per sale — a healthy ' + pct1(m.profitMargin) +
                 ' margin after all costs. This product is genuinely profitable.');
+      if (big) {
+        recs.push('Your biggest cost is ' + big.label.toLowerCase() + ' at ' + money(big.perUnit) +
+                  ' per sale (' + pct(big.shareOfPrice) + ' of your price). Negotiating it down by 10% would add about ' +
+                  money(big.total * 0.1) + ' in profit across your ' + m.units + ' units.');
+      }
     }
 
     if (has('HIGH_AD')) {
@@ -231,6 +261,21 @@
     return recs;
   }
 
+  /* ---------- One-line recommendation (dashboard table) ---------- */
+  function shortRecommendation(p, m) {
+    var big = biggestCost(p);
+    var st = getStatus(m);
+    if (st === 'LOSING') {
+      return 'Losing ' + money(-m.profitPerUnit) + '/sale' +
+        (big ? '. Biggest cost: ' + big.label.toLowerCase() + ' — ' + pct(big.shareOfPrice) + ' of price' : '') + '.';
+    }
+    if (st === 'LOW') {
+      return 'Thin ' + pct1(m.profitMargin) + ' margin' +
+        (big ? '. Biggest cost: ' + big.label.toLowerCase() + ' — ' + pct(big.shareOfPrice) + ' of price' : '') + '.';
+    }
+    return 'Healthy ' + pct1(m.profitMargin) + ' margin after all costs.';
+  }
+
   /* =============================================================
      5) PORTFOLIO SUMMARY — dashboard KPIs
      ============================================================= */
@@ -263,8 +308,10 @@
     computeMetrics: computeMetrics,
     getStatus: getStatus,
     costBreakdown: costBreakdown,
+    biggestCost: biggestCost,
     detectIssues: detectIssues,
     buildRecommendations: buildRecommendations,
+    shortRecommendation: shortRecommendation,
     summarizePortfolio: summarizePortfolio
   };
 

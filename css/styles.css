@@ -1174,6 +1174,9 @@ th.num, td.num { text-align: right; }
 
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rank-row { grid-template-columns: 15px minmax(72px, 100px) 1fr auto; gap: 7px; }
+  .rank-label { font-size: 11.5px; }
+  .rank-val { font-size: 11.5px; }
   .kpi-value { font-size: 21px; }
   .btn-xl { padding: 14px 22px; font-size: 15px; }
   .analysis-stats { grid-template-columns: 1fr 1fr; }

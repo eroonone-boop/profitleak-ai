@@ -167,7 +167,38 @@
       '</div>';
   }
 
-  var api = { COLORS: COLORS, profitBars: profitBars, costDonut: costDonut, unitBar: unitBar };
+  /* ---------- 4) Cost ranking — "your costs, biggest first" ---------- */
+  function costRanking(p) {
+    var TH = CALC.THRESHOLDS;
+    var limits = {
+      purchase: null, // purchase cost has no "healthy ceiling" — it's ranked by size instead
+      ad: TH.AD_SHARE_PCT, shipping: TH.SHIPPING_SHARE_PCT, fees: TH.FEES_SHARE_PCT,
+      discount: TH.DISCOUNT_SHARE_PCT, returns: TH.RETURNS_SHARE_PCT
+    };
+    var parts = CALC.costBreakdown(p)
+      .filter(function (c) { return c.perUnit > 0; })
+      .sort(function (a, b) { return b.perUnit - a.perUnit; });
+
+    if (!parts.length) return '<div class="chart-empty">No costs recorded.</div>';
+
+    var max = parts[0].perUnit;
+    var rows = parts.map(function (c, i) {
+      var over = limits[c.key] !== null && c.shareOfPrice > limits[c.key];
+      return '<div class="rank-row' + (i === 0 ? ' rank-first' : '') + (over ? ' rank-over' : '') + '">' +
+        '<span class="rank-pos">' + (i + 1) + '</span>' +
+        '<span class="rank-label">' + esc(c.label) +
+          (i === 0 ? ' <span class="rank-tag">biggest</span>' : '') + '</span>' +
+        '<span class="rank-track"><span class="rank-fill" style="width:' +
+          (c.perUnit / max * 100).toFixed(2) + '%;background:' + COLORS[c.key] + '"></span></span>' +
+        '<span class="rank-val">' + CALC.money(c.perUnit) +
+          '<span class="rank-pct">' + Math.round(c.shareOfPrice) + '% of price' + (over ? ' \u26A0\uFE0F' : '') + '</span></span>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="rank-list">' + rows + '</div>';
+  }
+
+  var api = { COLORS: COLORS, profitBars: profitBars, costDonut: costDonut, unitBar: unitBar, costRanking: costRanking };
 
   global.PL_CHARTS = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
