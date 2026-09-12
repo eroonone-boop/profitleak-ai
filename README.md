@@ -173,6 +173,7 @@ profitleak-ai/
 │   ├── csv.test.js         ← CSV export/import tests
 │   ├── plan.test.js        ← FREE/PRO plan tests
 │   ├── report.test.js      ← Profit Report tests
+│   ├── audit.test.js      ← full quality & reliability audit (143 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -180,11 +181,45 @@ profitleak-ai/
 └── README.md
 ```
 
+## 🔍 Quality & Reliability Audit (v1.7.1)
+
+A full independent audit pass over the entire application — **143 automated checks**
+(`npm run test:audit`), all green, on top of the existing 273 tests:
+
+- **Financial formulas** — every metric verified against the spec
+  (Revenue = price × units; Total Cost = all 6 costs; True Profit = revenue − cost;
+  Profit/Unit = profit ÷ units; Margin = profit ÷ revenue), plus 300-product fuzzing
+- **9 calculation scenarios** — profitable, losing, zero-profit, very low margin,
+  high advertising / shipping / fees, large discounts, high returns
+- **Division-by-zero & degenerate inputs** — units 0, price 0, empty costs: no
+  Infinity/NaN can ever reach the UI
+- **Validation** — negative prices/units/costs, zero/fractional units, invalid and
+  blank numbers, empty names: all blocked in the form AND in CSV import; broken CSV
+  files (garbage, missing columns, unbalanced quotes) never crash the importer
+- **Corrupted storage recovery** — tampered localStorage is sanitized on load:
+  invalid entries dropped, negative costs clamped, app never crashes
+- **Every feature end-to-end in a real DOM** — create, edit, delete + undo,
+  demo data, clear demo (real products provably untouched), CSV import/template/
+  export, diagnosis, what-if simulator, profit goal, report, FREE/PRO limits,
+  filters, sorting, malformed-URL robustness
+- **Cross-surface consistency** — dashboard KPIs = table rows = analysis page =
+  diagnosis = report = simulator = engine, for the same data
+- **Security** — no network calls, no eval, no external URLs, no secrets; live
+  XSS injection attempts (product names) render as inert text everywhere
+- **Performance** — 1,000 products calculated in ~1 ms; report of 500 products
+  in ~3 ms; 120-product import + full re-render stays smooth
+
+Fixes made during the audit (no features changed):
+- Router no longer crashes on malformed hashes such as `#/product/%`
+  (unsafe `decodeURIComponent` replaced with a guarded decoder)
+- Removed an accidentally duplicated code block in the what-if renderer
+
 ## 🧪 Tests
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + report + full app click-through tests (273 total)
+npm test               # engine + CSV + plan + report + smoke + full QA audit (416 total)
+npm run test:audit    # quality & reliability audit only (143 checks)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
 npm run test:plan      # FREE/PRO plan tests (zero dependencies)

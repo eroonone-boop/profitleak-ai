@@ -68,6 +68,12 @@
   /* =============================================================
      ROUTER
      ============================================================= */
+  /* Malformed hashes (e.g. #/product/%) must never crash the router —
+     a bad id simply falls back to a safe page. */
+  function safeDecode(s) {
+    try { return decodeURIComponent(s); } catch (e) { return ''; }
+  }
+
   function parseRoute() {
     var h = location.hash.replace(/^#/, '');
     if (!h || h === '/') return { page: 'landing' };
@@ -76,8 +82,8 @@
     if (parts[0] === 'pricing') return { page: 'pricing' };
     if (parts[0] === 'report') return { page: 'report' };
     if (parts[0] === 'add') return { page: 'form', mode: 'add' };
-    if (parts[0] === 'edit') return parts[1] ? { page: 'form', mode: 'edit', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
-    if (parts[0] === 'product') return parts[1] ? { page: 'analysis', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
+    if (parts[0] === 'edit') { var eId = safeDecode(parts[1]); return eId ? { page: 'form', mode: 'edit', id: eId } : { page: 'dashboard' }; }
+    if (parts[0] === 'product') { var aId = safeDecode(parts[1]); return aId ? { page: 'analysis', id: aId } : { page: 'dashboard' }; }
     return { page: 'landing' };
   }
 
@@ -621,20 +627,6 @@
     }
 
     /* --- what-if simulator rows --- */
-    var wiRows = WI_FIELDS.map(function (f) {
-      var v = p[f[0]];
-      return '<div class="wi-row">' +
-          '<div class="wi-info"><span class="wi-name">' + f[1] + '</span>' +
-            '<span class="wi-current">currently ' + fmtMoney(v) + '</span></div>' +
-          '<input type="range" class="wi-slider" data-wi-slider="' + f[0] +
-            '" min="0" max="' + wiNiceMax(v) + '" step="' + wiStep(v) + '" value="' + v +
-            '" aria-label="What-if: ' + f[1] + '">' +
-          '<input type="number" class="wi-num" data-wi-num="' + f[0] +
-            '" min="0" step="any" inputmode="decimal" value="' + v +
-            '" aria-label="What-if ' + f[1] + ' new value">' +
-        '</div>';
-    }).join('');
-
     var wiRows = WI_FIELDS.map(function (f) {
       var v = p[f[0]];
       return '<div class="wi-row">' +
