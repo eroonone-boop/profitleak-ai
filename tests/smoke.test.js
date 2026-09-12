@@ -86,12 +86,61 @@ async function main() {
   test('numbers table includes true-profit row', () => assert.ok(d.querySelector('#analysis-numbers .profit-row')));
   test('unit-economics stacked bar renders', () => assert.ok(d.querySelector('#analysis-bar .anatomy-track')));
   test('cost ranking shows #1 biggest cost (advertising)', () => {
-    const first = d.querySelector('#analysis-issues .rank-row');
+    const first = d.querySelector('#diagnosis-section .rank-row');
     assert.ok(first && first.textContent.includes('Advertising'));
-    assert.ok(d.querySelector('#analysis-issues .rank-tag'));
+    assert.ok(d.querySelector('#diagnosis-section .rank-tag'));
   });
   test('recommendation names the biggest cost causing the loss', () =>
     assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is advertising at $5.50 per sale')));
+
+  /* ---- smart profit diagnosis ---- */
+  test('diagnosis card renders with current profit tile', () =>
+    assert.ok(d.querySelector('#diagnosis-section .diag-current').textContent.includes('\u2212$380.00')));
+  test('diagnosis sentence quotes the real % of total costs', () =>
+    assert.ok(d.querySelector('#diagnosis-section .diag-sentence').textContent.includes('Your biggest profit leak is advertising. It represents 40% of your total costs')));
+  test('recommended action tile says "Reduce advertising cost"', () =>
+    assert.ok(d.querySelector('#diagnosis-section .diag-action .diag-value').textContent.includes('Reduce advertising cost')));
+  test('diagnosis ranks all 6 costs highest to lowest', () => {
+    const rows = Array.from(d.querySelectorAll('#diagnosis-section .rank-row'));
+    assert.equal(rows.length, 6);
+    assert.ok(rows[0].textContent.includes('Advertising')); // biggest first
+  });
+
+  /* ---- what-if simulator ---- */
+  const adSlider = d.querySelector('[data-wi-slider="adCostPerSale"]');
+  adSlider.value = '0';
+  adSlider.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('what-if: ads to $0 shows +$2,750.00 and new profit $2,370.00', () => {
+    const t = d.querySelector('#wi-results').textContent;
+    assert.ok(t.includes('+$2,750.00') && t.includes('$2,370.00') && t.includes('improves'));
+  });
+  d.querySelector('#wi-reset').click();
+  await tick(30);
+  test('what-if: reset restores the current numbers', () =>
+    assert.ok(d.querySelector('#wi-results').textContent.includes('No change yet')));
+  const priceNum = d.querySelector('[data-wi-num="sellingPrice"]');
+  priceNum.value = '13.75';
+  priceNum.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('what-if: break-even price shows +$380.00 improvement', () =>
+    assert.ok(d.querySelector('#wi-results').textContent.includes('+$380.00')));
+  d.querySelector('#wi-reset').click();
+  await tick(30);
+  d.querySelector('[data-wi-slider="adCostPerSale"]').value = '0';
+  d.querySelector('[data-wi-slider="adCostPerSale"]').dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  d.querySelector('#wi-apply').click();
+  await tick(30);
+  test('what-if: apply updates the product (true profit $2,370.00)', () =>
+    assert.ok(d.querySelector('#analysis-stats').textContent.includes('$2,370.00')));
+  test('what-if: after apply, diagnosis updates (leak is now purchase cost)', () =>
+    assert.equal(d.querySelector('#diagnosis-section .diag-leak .diag-value').textContent.trim(), 'Purchase cost'));
+  test('what-if: applied numbers are saved to browser storage', () => {
+    let saved = null;
+    try { saved = w.localStorage.getItem('profitleak.products.v1'); } catch (e) { saved = null; }
+    assert.ok(saved === null || saved.includes('"adCostPerSale":0'));
+  });
 
   /* ---- add product: validation first ---- */
   d.querySelector('.back-link').click();
@@ -131,7 +180,7 @@ async function main() {
   test('new product\u2019s recommendation explains the biggest cost', () =>
     assert.ok(d.querySelector('#analysis-recs').textContent.includes('The biggest cost causing this loss is purchase cost at $10.00 per sale')));
   test('cost ranking rendered for the new product', () =>
-    assert.equal(d.querySelectorAll('#analysis-issues .rank-row').length, 1));
+    assert.equal(d.querySelectorAll('#diagnosis-section .rank-row').length, 1));
   d.querySelector('.back-link').click();
   await tick();
   test('new product flagged \uD83D\uDD34 LOSING MONEY', () => {

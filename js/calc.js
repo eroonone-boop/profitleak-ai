@@ -277,6 +277,88 @@
   }
 
   /* =============================================================
+     4b) SMART PROFIT DIAGNOSIS + WHAT-IF SIMULATOR
+     ============================================================= */
+  var LEAK_ACTIONS = {
+    purchase: { title: 'Reduce purchase cost',
+                how: 'Negotiate with your supplier or find a cheaper source for this product' },
+    ad:       { title: 'Reduce advertising cost',
+                how: 'Tighten your ad targeting or pause your most expensive campaigns' },
+    shipping: { title: 'Reduce shipping cost',
+                how: 'Negotiate shipping rates or use lighter packaging' },
+    fees:     { title: 'Reduce platform/payment fees',
+                how: 'Compare marketplaces or payment providers' },
+    discount: { title: 'Reduce discounts',
+                how: 'Offer discounts less often, or price the product so the discounted price still makes money' },
+    returns:  { title: 'Review your return/refund rate',
+                how: 'Better photos and accurate descriptions usually cut returns' }
+  };
+
+  function diagnose(p, m) {
+    var big = biggestCost(p);
+
+    if (!big) {
+      return {
+        biggest: null,
+        sentence: 'No costs recorded for this product \u2014 every sale is pure profit. Nothing to diagnose.',
+        action: { title: 'Nothing to fix',
+                  detail: 'This product has no recorded costs, so there is no profit leak.', secondary: null }
+      };
+    }
+
+    var shareOfCosts = m.totalCost > 0 ? (big.total / m.totalCost) * 100 : 0;
+
+    var sentence = 'Your biggest profit leak is ' + big.label.toLowerCase() +
+      '. It represents ' + pct(shareOfCosts) + ' of your total costs \u2014 ' +
+      money(big.perUnit) + ' of the ' + money(m.totalCostPerUnit) + ' you spend on every sale.';
+
+    var a = LEAK_ACTIONS[big.key];
+    var action = {
+      title: a.title,
+      detail: a.how + '. Cutting it by 20% (\u2212' + money(big.perUnit * 0.2) +
+              ' per sale) would add about ' + money(big.total * 0.2) +
+              ' in profit across your ' + m.units + ' units sold.',
+      secondary: null
+    };
+    if (m.trueProfit < 0) {
+      action.secondary = 'Also: increasing your selling price to ' + money(m.totalCostPerUnit) +
+        ' would make every sale break even \u2014 or combine both fixes.';
+    }
+
+    return {
+      biggest: {
+        key: big.key, label: big.label,
+        perUnit: big.perUnit, total: big.total,
+        shareOfPrice: big.shareOfPrice, shareOfCosts: shareOfCosts
+      },
+      sentence: sentence,
+      action: action
+    };
+  }
+
+  /* What-if: recompute the whole profit picture with up to four changed inputs */
+  function simulate(p, changes) {
+    var current = computeMetrics(p);
+    var test = {
+      sellingPrice:      changes.sellingPrice  !== undefined ? changes.sellingPrice  : p.sellingPrice,
+      purchaseCost:      changes.purchaseCost  !== undefined ? changes.purchaseCost  : p.purchaseCost,
+      adCostPerSale:     changes.adCostPerSale !== undefined ? changes.adCostPerSale : p.adCostPerSale,
+      shippingCost:      changes.shippingCost  !== undefined ? changes.shippingCost  : p.shippingCost,
+      platformFees:      p.platformFees,
+      discountPerSale:   p.discountPerSale,
+      returnCostPerSale: p.returnCostPerSale,
+      unitsSold:         p.unitsSold
+    };
+    var next = computeMetrics(test);
+    return {
+      product: test,
+      metrics: next,
+      diffPerUnit: next.profitPerUnit - current.profitPerUnit,
+      diffTotal: next.trueProfit - current.trueProfit
+    };
+  }
+
+  /* =============================================================
      5) PORTFOLIO SUMMARY — dashboard KPIs
      ============================================================= */
   function summarizePortfolio(products) {
@@ -312,6 +394,8 @@
     detectIssues: detectIssues,
     buildRecommendations: buildRecommendations,
     shortRecommendation: shortRecommendation,
+    diagnose: diagnose,
+    simulate: simulate,
     summarizePortfolio: summarizePortfolio
   };
 

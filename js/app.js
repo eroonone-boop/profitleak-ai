@@ -462,6 +462,199 @@
   }
 
   /* =============================================================
+     SMART PROFIT DIAGNOSIS + WHAT-IF SIMULATOR
+     ============================================================= */
+  var WI_FIELDS = [
+    ['sellingPrice', 'Selling price'],
+    ['adCostPerSale', 'Advertising cost'],
+    ['purchaseCost', 'Purchase cost'],
+    ['shippingCost', 'Shipping cost']
+  ];
+
+  function wiNiceMax(v) { return Math.ceil(Math.max(v * 2, 1) * 10) / 10; }
+  function wiStep(v) { return v >= 50 ? 1 : v >= 10 ? 0.5 : v >= 1 ? 0.1 : 0.05; }
+
+  function renderDiagnosis(p, m) {
+    var host = $('#diagnosis-section');
+    var d = CALC.diagnose(p, m);
+    var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
+
+    /* --- top tiles: current profit / biggest leak / recommended action --- */
+    var tiles =
+      '<div class="diag-tile diag-current ' + (m.trueProfit < 0 ? 'diag-bad' : 'diag-good') + '">' +
+        '<div class="diag-label">Current profit</div>' +
+        '<div class="diag-value ' + profitCls + '">' + fmtMoney(m.trueProfit) + '</div>' +
+        '<div class="diag-sub">' + fmtMoney(m.profitPerUnit) + ' per sale \u00B7 ' + fmtPct(m.profitMargin) +
+          ' margin \u00B7 ' + m.units + ' units</div>' +
+      '</div>';
+
+    if (d.biggest) {
+      tiles +=
+        '<div class="diag-tile diag-leak">' +
+          '<div class="diag-label">Biggest profit leak</div>' +
+          '<div class="diag-value">' + esc(d.biggest.label) + '</div>' +
+          '<div class="diag-sub">' + fmtMoney(d.biggest.perUnit) + ' per sale \u00B7 ' +
+            CALC.pct(d.biggest.shareOfCosts) + ' of your total costs</div>' +
+        '</div>' +
+        '<div class="diag-tile diag-action">' +
+          '<div class="diag-label">Recommended action</div>' +
+          '<div class="diag-value">' + esc(d.action.title) + '</div>' +
+          '<div class="diag-sub">' + esc(d.action.detail) + '</div>' +
+          (d.action.secondary ? '<div class="diag-secondary">' + esc(d.action.secondary) + '</div>' : '') +
+        '</div>';
+    } else {
+      tiles +=
+        '<div class="diag-tile diag-leak">' +
+          '<div class="diag-label">Biggest profit leak</div>' +
+          '<div class="diag-value">None</div>' +
+          '<div class="diag-sub">No costs recorded for this product.</div>' +
+        '</div>' +
+        '<div class="diag-tile diag-action">' +
+          '<div class="diag-label">Recommended action</div>' +
+          '<div class="diag-value">' + esc(d.action.title) + '</div>' +
+          '<div class="diag-sub">' + esc(d.action.detail) + '</div>' +
+        '</div>';
+    }
+
+    /* --- what-if simulator rows --- */
+    var wiRows = WI_FIELDS.map(function (f) {
+      var v = p[f[0]];
+      return '<div class="wi-row">' +
+          '<div class="wi-info"><span class="wi-name">' + f[1] + '</span>' +
+            '<span class="wi-current">currently ' + fmtMoney(v) + '</span></div>' +
+          '<input type="range" class="wi-slider" data-wi-slider="' + f[0] +
+            '" min="0" max="' + wiNiceMax(v) + '" step="' + wiStep(v) + '" value="' + v +
+            '" aria-label="What-if: ' + f[1] + '">' +
+          '<input type="number" class="wi-num" data-wi-num="' + f[0] +
+            '" min="0" step="any" inputmode="decimal" value="' + v +
+            '" aria-label="What-if ' + f[1] + ' new value">' +
+        '</div>';
+    }).join('');
+
+    host.innerHTML =
+      '<div class="card diagnosis-card">' +
+        '<div class="diag-head">' +
+          '<h2 class="card-title"><span class="diag-icon" aria-hidden="true">\uD83D\uDD0D</span> Smart Profit Diagnosis</h2>' +
+          '<p class="card-sub">An automatic analysis of where your profit is going \u2014 calculated only from the numbers you entered.</p>' +
+        '</div>' +
+        '<div class="diag-grid">' + tiles + '</div>' +
+        '<p class="diag-sentence">' + esc(d.sentence) + '</p>' +
+        '<div class="rank-block">' +
+          '<p class="rank-block-title">Cost ranking \u2014 highest to lowest</p>' +
+          Charts.costRanking(p) +
+        '</div>' +
+        '<div class="wi-block">' +
+          '<div class="wi-head">' +
+            '<div>' +
+              '<h3 class="wi-title">\u201CWhat if I change this?\u201D</h3>' +
+              '<p class="card-sub">Move a slider or type a new number \u2014 the effect on your profit is calculated instantly. Nothing is saved until you press Apply.</p>' +
+            '</div>' +
+            '<div class="wi-buttons">' +
+              '<button class="btn btn-ghost btn-sm" type="button" id="wi-reset">Reset</button>' +
+              '<button class="btn btn-primary btn-sm" type="button" id="wi-apply">Apply to product</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="wi-rows">' + wiRows + '</div>' +
+          '<div class="wi-results" id="wi-results"></div>' +
+        '</div>' +
+      '</div>';
+
+    wireWhatIf(p);
+  }
+
+  function wireWhatIf(p) {
+    var sliders = {}, nums = {};
+    WI_FIELDS.forEach(function (f) {
+      sliders[f[0]] = $('#diagnosis-section [data-wi-slider="' + f[0] + '"]');
+      nums[f[0]] = $('#diagnosis-section [data-wi-num="' + f[0] + '"]');
+    });
+
+    function readChanges() {
+      var c = {};
+      WI_FIELDS.forEach(function (f) {
+        var raw = parseFloat(nums[f[0]].value);
+        c[f[0]] = isFinite(raw) && raw >= 0 ? raw : p[f[0]];
+      });
+      return c;
+    }
+
+    function recalc() {
+      var r = CALC.simulate(p, readChanges());
+      var m = r.metrics;
+      var meta = STATUS_META[CALC.getStatus(m)];
+      var cls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
+      var diff = r.diffTotal;
+
+      var verdict;
+      if (diff > 0.004) {
+        verdict = '<div class="wi-verdict wi-verdict-pos">\u25B2 This change <strong>improves</strong> your profit by ' +
+                  fmtMoney(diff) + '</div>';
+      } else if (diff < -0.004) {
+        verdict = '<div class="wi-verdict wi-verdict-neg">\u25BC This change <strong>reduces</strong> your profit by ' +
+                  fmtMoney(-diff) + ' \u2014 think twice before doing this.</div>';
+      } else {
+        verdict = '<div class="wi-verdict wi-verdict-neutral">No change yet \u2014 move a slider or type a new number to see what happens.</div>';
+      }
+
+      $('#wi-results').innerHTML =
+        '<div class="wi-res-tile"><div class="wi-res-label">New profit per unit</div>' +
+          '<div class="wi-res-value ' + cls + '">' + fmtMoney(m.profitPerUnit) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New total profit</div>' +
+          '<div class="wi-res-value ' + cls + '">' + fmtMoney(m.trueProfit) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New profit margin</div>' +
+          '<div class="wi-res-value">' + fmtPct(m.profitMargin) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">Difference from current profit</div>' +
+          '<div class="wi-res-value ' + (diff > 0.004 ? 'text-pos' : diff < -0.004 ? 'text-neg' : '') + '">' +
+          (diff > 0.004 ? '+' : '') + fmtMoney(diff) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New status</div>' +
+          '<div class="wi-res-badge"><span class="badge ' + meta.cls + '">' + meta.label + '</span></div></div>' +
+        verdict;
+    }
+
+    WI_FIELDS.forEach(function (f) {
+      var key = f[0];
+      sliders[key].addEventListener('input', function () {
+        nums[key].value = sliders[key].value;
+        recalc();
+      });
+      nums[key].addEventListener('input', function () {
+        var v = parseFloat(nums[key].value);
+        if (!isFinite(v) || v < 0) return; // wait for a valid, non-negative number
+        if (v > parseFloat(sliders[key].max)) sliders[key].max = String(v);
+        sliders[key].value = String(v);
+        recalc();
+      });
+    });
+
+    $('#wi-reset').addEventListener('click', function () {
+      WI_FIELDS.forEach(function (f) {
+        var key = f[0];
+        sliders[key].max = String(wiNiceMax(p[key]));
+        sliders[key].value = String(p[key]);
+        nums[key].value = String(p[key]);
+      });
+      recalc();
+    });
+
+    $('#wi-apply').addEventListener('click', function () {
+      var changes = readChanges();
+      var changed = WI_FIELDS.some(function (f) {
+        return Math.abs(changes[f[0]] - p[f[0]]) > 1e-9;
+      });
+      if (!changed) {
+        toast('No changes to apply \u2014 these numbers already match your product.');
+        return;
+      }
+      WI_FIELDS.forEach(function (f) { p[f[0]] = CALC.round2(changes[f[0]]); });
+      persist();
+      renderAnalysis(p.id); // re-render everything with the new baseline
+      toast('Simulation applied to \u201C' + esc(p.name) + '\u201D \u2713');
+    });
+
+    recalc(); // initial "no change yet" state
+  }
+
+  /* =============================================================
      PRODUCT ANALYSIS PAGE
      ============================================================= */
   function renderAnalysis(id) {
@@ -498,13 +691,22 @@
              '</div>';
     }
     var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
-    $('#analysis-stats').innerHTML =
+    var big = CALC.biggestCost(p);
+    var statsHtml =
       stat('True profit', '<span class="' + profitCls + '">' + fmtMoney(m.trueProfit) + '</span>',
            'revenue \u2212 all costs', m.trueProfit < 0 ? 'stat-red' : 'stat-green') +
       stat('Profit per unit', '<span class="' + profitCls + '">' + fmtMoney(m.profitPerUnit) + '</span>',
            'per single sale', m.trueProfit < 0 ? 'stat-red' : 'stat-green') +
       stat('Profit margin', fmtPct(m.profitMargin), 'true profit \u00F7 revenue') +
       stat('Break-even price', fmtMoney(m.totalCostPerUnit), 'price that covers all costs');
+    if (big) {
+      statsHtml += stat('Biggest cost', fmtMoney(big.perUnit),
+                        big.label + ' \u00B7 ' + CALC.pct(big.shareOfPrice) + ' of price');
+    }
+    $('#analysis-stats').innerHTML = statsHtml;
+
+    /* --- smart profit diagnosis + what-if simulator --- */
+    renderDiagnosis(p, m);
 
     /* --- the numbers table --- */
     function pctOfRev(v) { return m.revenue > 0 ? fmtPct(v / m.revenue * 100, 0) : '\u2014'; }
@@ -536,12 +738,7 @@
 
     /* --- where are you losing money? --- */
     if (issues.length) {
-      var rankBlock =
-        '<div class="rank-block">' +
-          '<p class="rank-block-title">Your costs, ranked — #1 is your biggest cost</p>' +
-          Charts.costRanking(p) +
-        '</div>';
-      $('#analysis-issues').innerHTML = rankBlock + issues.map(function (i) {
+      $('#analysis-issues').innerHTML = issues.map(function (i) {
         var cls = i.severity === 'danger' ? 'finding-danger' : 'finding-warn';
         return '<div class="finding ' + cls + '">' +
                  '<span class="finding-icon" aria-hidden="true">' + (ISSUE_ICONS[i.type] || '\u26A0\uFE0F') + '</span>' +

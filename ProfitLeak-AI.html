@@ -968,6 +968,245 @@ th.num, td.num { text-align: right; }
 .finding h3 { font-size: 14.5px; font-weight: 700; margin-bottom: 3px; }
 .finding p { font-size: 13.5px; color: var(--text); opacity: 0.85; }
 
+/* --- cost ranking ("your costs, biggest first") --- */
+.rank-block { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed var(--border); }
+
+.rank-block-title {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.rank-list { display: grid; gap: 8px; }
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 18px minmax(88px, 122px) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 9px;
+}
+
+.rank-first { background: var(--primary-soft); box-shadow: inset 0 0 0 1px #c7d2fe; }
+
+.rank-pos { font-size: 11px; font-weight: 800; color: var(--text-muted); text-align: center; }
+.rank-first .rank-pos { color: var(--primary-600); }
+
+.rank-label { font-size: 12.5px; font-weight: 650; }
+
+.rank-tag {
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 2px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.rank-track { height: 10px; background: #e9eef6; border-radius: 999px; overflow: hidden; }
+.rank-first .rank-track { background: #e0e7ff; }
+.rank-fill { display: block; height: 100%; border-radius: 999px; }
+
+.rank-val { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rank-pct { display: block; font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
+.rank-over .rank-pct { color: var(--amber); }
+
+/* =============================================================
+   SMART PROFIT DIAGNOSIS + WHAT-IF SIMULATOR
+   ============================================================= */
+.diagnosis-card {
+  margin-bottom: 22px;
+  padding: 24px;
+  border-top: 4px solid var(--primary);
+  background: linear-gradient(180deg, #fbfcff 0%, #ffffff 45%);
+}
+
+.diag-icon { margin-right: 4px; }
+
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin: 18px 0 14px;
+}
+
+.diag-tile {
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.diag-current.diag-good { background: var(--green-bg); border-color: #a7f3d0; }
+.diag-current.diag-bad  { background: var(--red-bg);   border-color: #fecaca; }
+.diag-leak   { background: #fff7ed; border-color: #fed7aa; }
+.diag-action { background: var(--primary-soft); border-color: #c7d2fe; }
+
+.diag-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.diag-value { font-size: 19px; font-weight: 800; margin-top: 5px; letter-spacing: -0.02em; line-height: 1.25; }
+.diag-sub { font-size: 12.5px; color: var(--text-muted); margin-top: 5px; line-height: 1.5; }
+
+.diag-secondary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #c7d2fe;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--primary-600);
+  line-height: 1.5;
+}
+
+.diag-sentence {
+  font-size: 15px;
+  line-height: 1.65;
+  padding: 14px 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  margin: 4px 0 20px;
+}
+
+/* --- what-if simulator --- */
+.wi-block { border-top: 1px dashed var(--border); padding-top: 20px; margin-top: 20px; }
+
+.wi-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.wi-title { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+.wi-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.wi-rows { display: grid; gap: 16px; margin: 20px 0 18px; }
+
+.wi-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 92px;
+  grid-template-areas: "info slider num";
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.wi-info { grid-area: info; display: flex; flex-direction: column; gap: 1px; }
+.wi-name { font-size: 13.5px; font-weight: 700; }
+.wi-current { font-size: 11.5px; color: var(--text-muted); }
+
+.wi-slider {
+  grid-area: slider;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  margin: 0;
+  cursor: pointer;
+}
+.wi-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+.wi-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(79, 70, 229, 0.45);
+  margin-top: -6px;
+}
+.wi-slider::-moz-range-track { height: 6px; border-radius: 999px; background: #e2e8f0; }
+.wi-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(79, 70, 229, 0.45);
+}
+.wi-slider:focus-visible { outline: 3px solid #c7d2fe; outline-offset: 2px; border-radius: 8px; }
+
+.wi-num {
+  grid-area: num;
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.wi-num:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
+
+.wi-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.wi-res-tile {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 13px;
+}
+
+.wi-res-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.wi-res-value { font-size: 17.5px; font-weight: 800; margin-top: 4px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.wi-res-badge { margin-top: 7px; }
+
+.wi-verdict {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  border: 1px solid;
+  line-height: 1.5;
+}
+.wi-verdict-pos     { background: var(--green-bg); border-color: #a7f3d0; color: #065f46; }
+.wi-verdict-neg     { background: var(--red-bg);   border-color: #fecaca; color: #7f1d1d; }
+.wi-verdict-neutral { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
+
+/* --- what-if simulator on tablet/mobile --- */
+@media (max-width: 900px) {
+  .wi-row {
+    grid-template-columns: 1fr 92px;
+    grid-template-areas: "info num" "slider slider";
+  }
+}
+
 /* --- recommendations --- */
 .recs { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: rec; }
 
@@ -1496,6 +1735,7 @@ th.num, td.num { text-align: right; }
     <section id="page-analysis" class="page" hidden>
       <div id="analysis-head"></div>
       <div class="analysis-stats" id="analysis-stats"></div>
+      <div id="diagnosis-section"></div>
       <div class="analysis-grid">
         <div class="card">
           <h2 class="card-title">The numbers</h2>
@@ -1994,6 +2234,88 @@ th.num, td.num { text-align: right; }
   }
 
   /* =============================================================
+     4b) SMART PROFIT DIAGNOSIS + WHAT-IF SIMULATOR
+     ============================================================= */
+  var LEAK_ACTIONS = {
+    purchase: { title: 'Reduce purchase cost',
+                how: 'Negotiate with your supplier or find a cheaper source for this product' },
+    ad:       { title: 'Reduce advertising cost',
+                how: 'Tighten your ad targeting or pause your most expensive campaigns' },
+    shipping: { title: 'Reduce shipping cost',
+                how: 'Negotiate shipping rates or use lighter packaging' },
+    fees:     { title: 'Reduce platform/payment fees',
+                how: 'Compare marketplaces or payment providers' },
+    discount: { title: 'Reduce discounts',
+                how: 'Offer discounts less often, or price the product so the discounted price still makes money' },
+    returns:  { title: 'Review your return/refund rate',
+                how: 'Better photos and accurate descriptions usually cut returns' }
+  };
+
+  function diagnose(p, m) {
+    var big = biggestCost(p);
+
+    if (!big) {
+      return {
+        biggest: null,
+        sentence: 'No costs recorded for this product \u2014 every sale is pure profit. Nothing to diagnose.',
+        action: { title: 'Nothing to fix',
+                  detail: 'This product has no recorded costs, so there is no profit leak.', secondary: null }
+      };
+    }
+
+    var shareOfCosts = m.totalCost > 0 ? (big.total / m.totalCost) * 100 : 0;
+
+    var sentence = 'Your biggest profit leak is ' + big.label.toLowerCase() +
+      '. It represents ' + pct(shareOfCosts) + ' of your total costs \u2014 ' +
+      money(big.perUnit) + ' of the ' + money(m.totalCostPerUnit) + ' you spend on every sale.';
+
+    var a = LEAK_ACTIONS[big.key];
+    var action = {
+      title: a.title,
+      detail: a.how + '. Cutting it by 20% (\u2212' + money(big.perUnit * 0.2) +
+              ' per sale) would add about ' + money(big.total * 0.2) +
+              ' in profit across your ' + m.units + ' units sold.',
+      secondary: null
+    };
+    if (m.trueProfit < 0) {
+      action.secondary = 'Also: increasing your selling price to ' + money(m.totalCostPerUnit) +
+        ' would make every sale break even \u2014 or combine both fixes.';
+    }
+
+    return {
+      biggest: {
+        key: big.key, label: big.label,
+        perUnit: big.perUnit, total: big.total,
+        shareOfPrice: big.shareOfPrice, shareOfCosts: shareOfCosts
+      },
+      sentence: sentence,
+      action: action
+    };
+  }
+
+  /* What-if: recompute the whole profit picture with up to four changed inputs */
+  function simulate(p, changes) {
+    var current = computeMetrics(p);
+    var test = {
+      sellingPrice:      changes.sellingPrice  !== undefined ? changes.sellingPrice  : p.sellingPrice,
+      purchaseCost:      changes.purchaseCost  !== undefined ? changes.purchaseCost  : p.purchaseCost,
+      adCostPerSale:     changes.adCostPerSale !== undefined ? changes.adCostPerSale : p.adCostPerSale,
+      shippingCost:      changes.shippingCost  !== undefined ? changes.shippingCost  : p.shippingCost,
+      platformFees:      p.platformFees,
+      discountPerSale:   p.discountPerSale,
+      returnCostPerSale: p.returnCostPerSale,
+      unitsSold:         p.unitsSold
+    };
+    var next = computeMetrics(test);
+    return {
+      product: test,
+      metrics: next,
+      diffPerUnit: next.profitPerUnit - current.profitPerUnit,
+      diffTotal: next.trueProfit - current.trueProfit
+    };
+  }
+
+  /* =============================================================
      5) PORTFOLIO SUMMARY — dashboard KPIs
      ============================================================= */
   function summarizePortfolio(products) {
@@ -2029,6 +2351,8 @@ th.num, td.num { text-align: right; }
     detectIssues: detectIssues,
     buildRecommendations: buildRecommendations,
     shortRecommendation: shortRecommendation,
+    diagnose: diagnose,
+    simulate: simulate,
     summarizePortfolio: summarizePortfolio
   };
 
@@ -2712,6 +3036,199 @@ th.num, td.num { text-align: right; }
   }
 
   /* =============================================================
+     SMART PROFIT DIAGNOSIS + WHAT-IF SIMULATOR
+     ============================================================= */
+  var WI_FIELDS = [
+    ['sellingPrice', 'Selling price'],
+    ['adCostPerSale', 'Advertising cost'],
+    ['purchaseCost', 'Purchase cost'],
+    ['shippingCost', 'Shipping cost']
+  ];
+
+  function wiNiceMax(v) { return Math.ceil(Math.max(v * 2, 1) * 10) / 10; }
+  function wiStep(v) { return v >= 50 ? 1 : v >= 10 ? 0.5 : v >= 1 ? 0.1 : 0.05; }
+
+  function renderDiagnosis(p, m) {
+    var host = $('#diagnosis-section');
+    var d = CALC.diagnose(p, m);
+    var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
+
+    /* --- top tiles: current profit / biggest leak / recommended action --- */
+    var tiles =
+      '<div class="diag-tile diag-current ' + (m.trueProfit < 0 ? 'diag-bad' : 'diag-good') + '">' +
+        '<div class="diag-label">Current profit</div>' +
+        '<div class="diag-value ' + profitCls + '">' + fmtMoney(m.trueProfit) + '</div>' +
+        '<div class="diag-sub">' + fmtMoney(m.profitPerUnit) + ' per sale \u00B7 ' + fmtPct(m.profitMargin) +
+          ' margin \u00B7 ' + m.units + ' units</div>' +
+      '</div>';
+
+    if (d.biggest) {
+      tiles +=
+        '<div class="diag-tile diag-leak">' +
+          '<div class="diag-label">Biggest profit leak</div>' +
+          '<div class="diag-value">' + esc(d.biggest.label) + '</div>' +
+          '<div class="diag-sub">' + fmtMoney(d.biggest.perUnit) + ' per sale \u00B7 ' +
+            CALC.pct(d.biggest.shareOfCosts) + ' of your total costs</div>' +
+        '</div>' +
+        '<div class="diag-tile diag-action">' +
+          '<div class="diag-label">Recommended action</div>' +
+          '<div class="diag-value">' + esc(d.action.title) + '</div>' +
+          '<div class="diag-sub">' + esc(d.action.detail) + '</div>' +
+          (d.action.secondary ? '<div class="diag-secondary">' + esc(d.action.secondary) + '</div>' : '') +
+        '</div>';
+    } else {
+      tiles +=
+        '<div class="diag-tile diag-leak">' +
+          '<div class="diag-label">Biggest profit leak</div>' +
+          '<div class="diag-value">None</div>' +
+          '<div class="diag-sub">No costs recorded for this product.</div>' +
+        '</div>' +
+        '<div class="diag-tile diag-action">' +
+          '<div class="diag-label">Recommended action</div>' +
+          '<div class="diag-value">' + esc(d.action.title) + '</div>' +
+          '<div class="diag-sub">' + esc(d.action.detail) + '</div>' +
+        '</div>';
+    }
+
+    /* --- what-if simulator rows --- */
+    var wiRows = WI_FIELDS.map(function (f) {
+      var v = p[f[0]];
+      return '<div class="wi-row">' +
+          '<div class="wi-info"><span class="wi-name">' + f[1] + '</span>' +
+            '<span class="wi-current">currently ' + fmtMoney(v) + '</span></div>' +
+          '<input type="range" class="wi-slider" data-wi-slider="' + f[0] +
+            '" min="0" max="' + wiNiceMax(v) + '" step="' + wiStep(v) + '" value="' + v +
+            '" aria-label="What-if: ' + f[1] + '">' +
+          '<input type="number" class="wi-num" data-wi-num="' + f[0] +
+            '" min="0" step="any" inputmode="decimal" value="' + v +
+            '" aria-label="What-if ' + f[1] + ' new value">' +
+        '</div>';
+    }).join('');
+
+    host.innerHTML =
+      '<div class="card diagnosis-card">' +
+        '<div class="diag-head">' +
+          '<h2 class="card-title"><span class="diag-icon" aria-hidden="true">\uD83D\uDD0D</span> Smart Profit Diagnosis</h2>' +
+          '<p class="card-sub">An automatic analysis of where your profit is going \u2014 calculated only from the numbers you entered.</p>' +
+        '</div>' +
+        '<div class="diag-grid">' + tiles + '</div>' +
+        '<p class="diag-sentence">' + esc(d.sentence) + '</p>' +
+        '<div class="rank-block">' +
+          '<p class="rank-block-title">Cost ranking \u2014 highest to lowest</p>' +
+          Charts.costRanking(p) +
+        '</div>' +
+        '<div class="wi-block">' +
+          '<div class="wi-head">' +
+            '<div>' +
+              '<h3 class="wi-title">\u201CWhat if I change this?\u201D</h3>' +
+              '<p class="card-sub">Move a slider or type a new number \u2014 the effect on your profit is calculated instantly. Nothing is saved until you press Apply.</p>' +
+            '</div>' +
+            '<div class="wi-buttons">' +
+              '<button class="btn btn-ghost btn-sm" type="button" id="wi-reset">Reset</button>' +
+              '<button class="btn btn-primary btn-sm" type="button" id="wi-apply">Apply to product</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="wi-rows">' + wiRows + '</div>' +
+          '<div class="wi-results" id="wi-results"></div>' +
+        '</div>' +
+      '</div>';
+
+    wireWhatIf(p);
+  }
+
+  function wireWhatIf(p) {
+    var sliders = {}, nums = {};
+    WI_FIELDS.forEach(function (f) {
+      sliders[f[0]] = $('#diagnosis-section [data-wi-slider="' + f[0] + '"]');
+      nums[f[0]] = $('#diagnosis-section [data-wi-num="' + f[0] + '"]');
+    });
+
+    function readChanges() {
+      var c = {};
+      WI_FIELDS.forEach(function (f) {
+        var raw = parseFloat(nums[f[0]].value);
+        c[f[0]] = isFinite(raw) && raw >= 0 ? raw : p[f[0]];
+      });
+      return c;
+    }
+
+    function recalc() {
+      var r = CALC.simulate(p, readChanges());
+      var m = r.metrics;
+      var meta = STATUS_META[CALC.getStatus(m)];
+      var cls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
+      var diff = r.diffTotal;
+
+      var verdict;
+      if (diff > 0.004) {
+        verdict = '<div class="wi-verdict wi-verdict-pos">\u25B2 This change <strong>improves</strong> your profit by ' +
+                  fmtMoney(diff) + '</div>';
+      } else if (diff < -0.004) {
+        verdict = '<div class="wi-verdict wi-verdict-neg">\u25BC This change <strong>reduces</strong> your profit by ' +
+                  fmtMoney(-diff) + ' \u2014 think twice before doing this.</div>';
+      } else {
+        verdict = '<div class="wi-verdict wi-verdict-neutral">No change yet \u2014 move a slider or type a new number to see what happens.</div>';
+      }
+
+      $('#wi-results').innerHTML =
+        '<div class="wi-res-tile"><div class="wi-res-label">New profit per unit</div>' +
+          '<div class="wi-res-value ' + cls + '">' + fmtMoney(m.profitPerUnit) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New total profit</div>' +
+          '<div class="wi-res-value ' + cls + '">' + fmtMoney(m.trueProfit) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New profit margin</div>' +
+          '<div class="wi-res-value">' + fmtPct(m.profitMargin) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">Difference from current profit</div>' +
+          '<div class="wi-res-value ' + (diff > 0.004 ? 'text-pos' : diff < -0.004 ? 'text-neg' : '') + '">' +
+          (diff > 0.004 ? '+' : '') + fmtMoney(diff) + '</div></div>' +
+        '<div class="wi-res-tile"><div class="wi-res-label">New status</div>' +
+          '<div class="wi-res-badge"><span class="badge ' + meta.cls + '">' + meta.label + '</span></div></div>' +
+        verdict;
+    }
+
+    WI_FIELDS.forEach(function (f) {
+      var key = f[0];
+      sliders[key].addEventListener('input', function () {
+        nums[key].value = sliders[key].value;
+        recalc();
+      });
+      nums[key].addEventListener('input', function () {
+        var v = parseFloat(nums[key].value);
+        if (!isFinite(v) || v < 0) return; // wait for a valid, non-negative number
+        if (v > parseFloat(sliders[key].max)) sliders[key].max = String(v);
+        sliders[key].value = String(v);
+        recalc();
+      });
+    });
+
+    $('#wi-reset').addEventListener('click', function () {
+      WI_FIELDS.forEach(function (f) {
+        var key = f[0];
+        sliders[key].max = String(wiNiceMax(p[key]));
+        sliders[key].value = String(p[key]);
+        nums[key].value = String(p[key]);
+      });
+      recalc();
+    });
+
+    $('#wi-apply').addEventListener('click', function () {
+      var changes = readChanges();
+      var changed = WI_FIELDS.some(function (f) {
+        return Math.abs(changes[f[0]] - p[f[0]]) > 1e-9;
+      });
+      if (!changed) {
+        toast('No changes to apply \u2014 these numbers already match your product.');
+        return;
+      }
+      WI_FIELDS.forEach(function (f) { p[f[0]] = CALC.round2(changes[f[0]]); });
+      persist();
+      renderAnalysis(p.id); // re-render everything with the new baseline
+      toast('Simulation applied to \u201C' + esc(p.name) + '\u201D \u2713');
+    });
+
+    recalc(); // initial "no change yet" state
+  }
+
+  /* =============================================================
      PRODUCT ANALYSIS PAGE
      ============================================================= */
   function renderAnalysis(id) {
@@ -2748,13 +3265,22 @@ th.num, td.num { text-align: right; }
              '</div>';
     }
     var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
-    $('#analysis-stats').innerHTML =
+    var big = CALC.biggestCost(p);
+    var statsHtml =
       stat('True profit', '<span class="' + profitCls + '">' + fmtMoney(m.trueProfit) + '</span>',
            'revenue \u2212 all costs', m.trueProfit < 0 ? 'stat-red' : 'stat-green') +
       stat('Profit per unit', '<span class="' + profitCls + '">' + fmtMoney(m.profitPerUnit) + '</span>',
            'per single sale', m.trueProfit < 0 ? 'stat-red' : 'stat-green') +
       stat('Profit margin', fmtPct(m.profitMargin), 'true profit \u00F7 revenue') +
       stat('Break-even price', fmtMoney(m.totalCostPerUnit), 'price that covers all costs');
+    if (big) {
+      statsHtml += stat('Biggest cost', fmtMoney(big.perUnit),
+                        big.label + ' \u00B7 ' + CALC.pct(big.shareOfPrice) + ' of price');
+    }
+    $('#analysis-stats').innerHTML = statsHtml;
+
+    /* --- smart profit diagnosis + what-if simulator --- */
+    renderDiagnosis(p, m);
 
     /* --- the numbers table --- */
     function pctOfRev(v) { return m.revenue > 0 ? fmtPct(v / m.revenue * 100, 0) : '\u2014'; }
@@ -2786,12 +3312,7 @@ th.num, td.num { text-align: right; }
 
     /* --- where are you losing money? --- */
     if (issues.length) {
-      var rankBlock =
-        '<div class="rank-block">' +
-          '<p class="rank-block-title">Your costs, ranked — #1 is your biggest cost</p>' +
-          Charts.costRanking(p) +
-        '</div>';
-      $('#analysis-issues').innerHTML = rankBlock + issues.map(function (i) {
+      $('#analysis-issues').innerHTML = issues.map(function (i) {
         var cls = i.severity === 'danger' ? 'finding-danger' : 'finding-warn';
         return '<div class="finding ' + cls + '">' +
                  '<span class="finding-icon" aria-hidden="true">' + (ISSUE_ICONS[i.type] || '\u26A0\uFE0F') + '</span>' +

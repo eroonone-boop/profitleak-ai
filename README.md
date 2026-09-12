@@ -22,6 +22,8 @@ No signup. No backend. Your data is stored locally in your browser.
 | 🚨 **Loss detection** | Flags losing products, thin margins, high ad / shipping / fee / discount / return costs |
 | 💡 **Recommendations** | Names the biggest cost causing each loss, with exact amounts, break-even prices and avoidable losses from *your* numbers |
 | 🥇 **Cost ranking** | Every product's costs ranked biggest-first — the #1 leak is highlighted |
+| 🩺 **Smart Profit Diagnosis** | Names your biggest profit leak with its exact **share of total costs**, a practical action, and a plain-English diagnosis sentence |
+| 🎛️ **What-If Simulator** | Drag sliders for price, ads, purchase & shipping — instantly see the profit impact ("improves by $X" / "reduces by $Y"), then apply with one click |
 | 📋 **Product table** | Sortable, with clear statuses: 🟢 PROFITABLE · 🟡 LOW PROFIT · 🔴 LOSING MONEY |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |

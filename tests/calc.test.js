@@ -153,6 +153,72 @@ vectors.forEach((v, i) => {
     assert.ok(near(m.profitPerUnit * p.unitsSold, m.trueProfit, 1e-6)));
 });
 
+/* ---------- 6d) Smart Profit Diagnosis ---------- */
+test('diagnosis: phone case leak = advertising, 40% of total costs', () => {
+  const d = calc.diagnose(phone, pm);
+  assert.equal(d.biggest.key, 'ad');
+  assert.ok(d.sentence.includes('Your biggest profit leak is advertising. It represents 40% of your total costs'));
+  assert.ok(d.sentence.includes('$5.50 of the $13.75 you spend on every sale'));
+});
+test('diagnosis: action for phone case = reduce advertising cost (+$550 if cut 20%)', () => {
+  const d = calc.diagnose(phone, pm);
+  assert.equal(d.action.title, 'Reduce advertising cost');
+  assert.ok(d.action.detail.includes('\u2212$1.10 per sale'));
+  assert.ok(d.action.detail.includes('about $550.00 in profit across your 500 units sold'));
+});
+test('diagnosis: losing product also gets a break-even price action', () => {
+  const d = calc.diagnose(phone, pm);
+  assert.ok(d.action.secondary.includes('increasing your selling price to $13.75'));
+});
+test('diagnosis: candle leak = purchase cost, 33% of total costs', () => {
+  const d = calc.diagnose(candle, cm);
+  assert.equal(d.biggest.key, 'purchase');
+  assert.ok(d.sentence.includes('purchase cost. It represents 33% of your total costs'));
+});
+test('diagnosis: earbuds leak = purchase cost, 47% of total costs', () => {
+  const d = calc.diagnose(byName('Wireless Earbuds Pro'), em);
+  assert.equal(d.biggest.key, 'purchase');
+  assert.ok(d.sentence.includes('purchase cost. It represents 47% of your total costs'));
+});
+test('diagnosis: share of costs is consistent with the breakdown', () => {
+  const d = calc.diagnose(candle, cm);
+  const sum = calc.costBreakdown(candle).reduce((s, c) => s + c.total, 0);
+  assert.ok(near(d.biggest.total / sum * 100, d.biggest.shareOfCosts, 1e-6));
+});
+test('diagnosis: zero-cost product has no leak', () => {
+  const d = calc.diagnose(pure, pureM);
+  assert.equal(d.biggest, null);
+  assert.ok(d.sentence.includes('No costs recorded'));
+  assert.equal(d.action.title, 'Nothing to fix');
+});
+
+/* ---------- 6e) What-If Simulator math ---------- */
+test('what-if: cutting phone-case ads to $0 improves profit by $2,750', () => {
+  const r = calc.simulate(phone, { adCostPerSale: 0 });
+  assert.ok(near(r.metrics.trueProfit, 2370) && near(r.diffTotal, 2750) && near(r.diffPerUnit, 5.5));
+});
+test('what-if: raising earbuds price by $1 adds $320', () => {
+  const r = calc.simulate(byName('Wireless Earbuds Pro'), { sellingPrice: 50.99 });
+  assert.ok(near(r.diffTotal, 320));
+});
+test('what-if: cutting candle purchase cost to $9 adds $210', () => {
+  const r = calc.simulate(candle, { purchaseCost: 9 });
+  assert.ok(near(r.diffTotal, 210));
+});
+test('what-if: higher shipping reduces profit', () => {
+  const r = calc.simulate(byName('Silicone Baking Mat Set'), { shippingCost: 5 });
+  assert.ok(near(r.diffTotal, -645));
+});
+test('what-if: no changes = zero difference, same numbers', () => {
+  const r = calc.simulate(candle, {});
+  assert.ok(near(r.diffTotal, 0) && near(r.diffPerUnit, 0));
+  assert.ok(near(r.metrics.trueProfit, cm.trueProfit));
+});
+test('what-if: combined changes compose correctly', () => {
+  const r = calc.simulate(phone, { sellingPrice: 14.99, adCostPerSale: 2 });
+  assert.ok(near(r.diffTotal, 2750) && near(r.metrics.trueProfit, 2370));
+});
+
 /* ---------- 7) Portfolio summary (dashboard KPIs) ---------- */
 const s = calc.summarizePortfolio(SAMPLE_PRODUCTS);
 test('summary: 6 products', () => assert.equal(s.count, 6));
