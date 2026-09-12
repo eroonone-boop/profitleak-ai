@@ -278,11 +278,37 @@ After editing anything in `css/` or `js/`:
 python3 scripts/build_standalone.py
 ```
 
-## ☁️ Deploy to GitHub Pages
+## ☁️ Deploy (free static hosting)
 
-1. Push this folder to a GitHub repository.
-2. Repository **Settings → Pages** → Source: *Deploy from a branch* → `main` / root.
-3. Your app is live at `https://<username>.github.io/<repo>/`.
+ProfitLeak AI is a **pure static site**: no build step, no backend, no environment
+variables, no API keys. Everything runs in the visitor's browser. Any static host works.
+
+### Option A — GitHub Pages (simplest if your code is on GitHub)
+
+1. Push this repository to GitHub (`git push` after adding your remote).
+2. In the repository: **Settings → Pages** → Source: *Deploy from a branch*
+   → branch `main`, folder `/ (root)` → **Save**.
+3. Wait ~1 minute — your app is live at `https://<username>.github.io/<repo>/`.
+
+A `.nojekyll` file is included so GitHub serves the files exactly as they are.
+
+### Option B — Cloudflare Pages
+
+1. Go to **dash.cloudflare.com → Workers & Pages → Create → Pages**.
+2. Either **Connect to Git** (pick this repository) or **Direct Upload**
+   (drag the project folder).
+3. Build command: **leave empty** · Build output directory: **/** (root).
+4. Deploy — done. You get a free `*.pages.dev` URL and optional custom domain.
+
+### Option C — single-file deploy (zero hosting setup)
+
+`ProfitLeak-AI.html` is the whole app in ONE self-contained file (HTML + CSS + JS).
+Upload it anywhere — Netlify Drop (app.netlify.com/drop), any web server, even a
+USB stick — and open it in a browser. Nothing else is needed.
+
+> Deploy the repo root (Option A/B) or the single file (Option C) — both are
+> production-ready and tested. Data is stored per visitor in their own browser
+> (localStorage); there is no server, database or user data to protect.
 
 ## 🔭 Roadmap (v2 ideas — intentionally not in v1)
 
