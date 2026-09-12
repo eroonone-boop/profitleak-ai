@@ -1,0 +1,15 @@
+{
+  "name": "profitleak-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SaaS MVP that shows online sellers their TRUE product profit after all costs (ads, shipping, fees, discounts, returns) and where they're leaking money.",
+  "scripts": {
+    "test": "node tests/calc.test.js && node tests/smoke.test.js",
+    "test:calc": "node tests/calc.test.js",
+    "test:smoke": "node tests/smoke.test.js",
+    "build:standalone": "python3 scripts/build_standalone.py"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}
