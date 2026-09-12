@@ -189,10 +189,14 @@
             <p class="card-sub">Click a column to sort · click a row for the full analysis.</p>
           </div>
           <div class="table-tools">
+            <button class="btn btn-ghost btn-sm" type="button" data-action="export-csv">Export CSV</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="import-csv">Import CSV</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="load-samples">Load sample data</button>
             <button class="btn btn-ghost btn-sm danger-text" type="button" data-action="clear-all">Clear all</button>
+            <input type="file" id="csv-file" accept=".csv,text/csv" hidden>
           </div>
         </div>
+        <div class="table-filters" id="table-filters"></div>
         <div class="table-responsive" id="table-wrap"></div>
       </div>
     </section>

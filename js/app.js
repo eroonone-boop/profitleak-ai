@@ -9,6 +9,7 @@
   var CALC = window.PL_CALC;
   var Store = window.PL_STORE;
   var Charts = window.PL_CHARTS;
+  var CSV = window.PL_CSV;
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -56,6 +57,7 @@
   var state = {
     products: [],
     editingId: null,
+    filter: 'all',
     sort: { key: 'trueProfit', dir: 'asc' } // worst profit first by default
   };
 
@@ -209,7 +211,19 @@
     });
     $('#chart-costs').innerHTML = Charts.costDonut(Object.keys(byKey).map(function (k) { return byKey[k]; }));
 
-    /* ----- Table ----- */
+    /* ----- filter chips + table ----- */
+    var chips = [
+      { key: 'all', label: 'All', count: s.count },
+      { key: 'losing', label: 'Losing money', count: s.losing },
+      { key: 'low', label: 'Low profit', count: s.low },
+      { key: 'profitable', label: 'Profitable', count: s.profitable }
+    ];
+    $('#table-filters').innerHTML = chips.map(function (c) {
+      return '<button type="button" class="chip' + (state.filter === c.key ? ' chip-active' : '') +
+        '" data-filter="' + c.key + '"><span class="chip-dot chip-dot-' + c.key + '"></span>' +
+        c.label + '<span class="chip-count">' + c.count + '</span></button>';
+    }).join('');
+
     $('#table-wrap').innerHTML = buildTable();
   }
 
@@ -261,7 +275,21 @@
       return '<th scope="col"' + attrs + '>' + c[1] + ind + '</th>';
     }).join('');
 
-    var body = sortedRows().map(rowHtml).join('');
+    var body = sortedRows();
+    if (state.filter && state.filter !== 'all') {
+      body = body.filter(function (r) { return CALC.getStatus(r.m).toLowerCase() === state.filter; });
+    }
+    if (!body.length) {
+      return '<div class="empty-state">' +
+               '<div class="empty-icon" aria-hidden="true">\uD83D\uDD0E</div>' +
+               '<h3>No products in this view</h3>' +
+               '<p>No products currently match this filter.</p>' +
+               '<div class="empty-actions">' +
+                 '<button class="btn btn-ghost" type="button" data-filter="all">Show all products</button>' +
+               '</div>' +
+             '</div>';
+    }
+    body = body.map(rowHtml).join('');
 
     return '<table class="data-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
   }
@@ -466,9 +494,12 @@
      ============================================================= */
   var WI_FIELDS = [
     ['sellingPrice', 'Selling price'],
-    ['adCostPerSale', 'Advertising cost'],
     ['purchaseCost', 'Purchase cost'],
-    ['shippingCost', 'Shipping cost']
+    ['adCostPerSale', 'Advertising cost'],
+    ['shippingCost', 'Shipping cost'],
+    ['platformFees', 'Platform/payment fees'],
+    ['discountPerSale', 'Discount'],
+    ['returnCostPerSale', 'Return/refund cost']
   ];
 
   function wiNiceMax(v) { return Math.ceil(Math.max(v * 2, 1) * 10) / 10; }
@@ -557,9 +588,67 @@
           '<div class="wi-rows">' + wiRows + '</div>' +
           '<div class="wi-results" id="wi-results"></div>' +
         '</div>' +
+        '<div class="goal-block">' +
+          '<div class="goal-head">' +
+            '<label for="goal-input">\uD83C\uDFAF Profit goal \u2014 I want to earn</label>' +
+            '<span class="goal-input-wrap">' +
+              '<span class="goal-currency">$</span>' +
+              '<input type="number" id="goal-input" min="0" step="any" inputmode="decimal" placeholder="2.00" aria-label="Target profit per sale">' +
+              '<span class="goal-per">per sale</span>' +
+            '</span>' +
+          '</div>' +
+          '<div class="goal-out" id="goal-out"></div>' +
+        '</div>' +
       '</div>';
 
     wireWhatIf(p);
+    wireGoal(p, m);
+  }
+
+  /* ---------- profit goal finder ---------- */
+  function wireGoal(p, m) {
+    var input = $('#goal-input');
+    var out = $('#goal-out');
+
+    function recalc() {
+      var t = parseFloat(input.value);
+      if (input.value === '' || !isFinite(t) || t < 0) {
+        out.innerHTML = '<p class="goal-hint">Type a target profit per sale \u2014 we\u2019ll show the exact price or cost cut that reaches it.</p>';
+        return;
+      }
+      var g = CALC.goalPlan(p, m, t);
+      if (g.met) {
+        out.innerHTML = '<p class="goal-met">\u2705 You already earn <strong>' + fmtMoney(g.current) +
+          '</strong> per sale \u2014 above your ' + fmtMoney(g.target) + ' goal. No changes needed.</p>';
+        return;
+      }
+      var html = '<p>To reach <strong>' + fmtMoney(g.target) + ' per sale</strong> you need <strong>+' +
+        fmtMoney(g.gap) + ' per sale</strong>. ' +
+        (g.canCut ? 'Two ways to get there:' :
+          'Even with <strong>all costs at $0.00</strong>, your current price only earns ' +
+          fmtMoney(p.sellingPrice) + ' per sale, so:') + '</p>';
+      html += '<ul class="goal-ways">';
+      html += '<li>\uD83D\uDCB0 Raise your selling price to <strong>' + fmtMoney(g.requiredPrice) +
+        '</strong> (currently ' + fmtMoney(p.sellingPrice) + ')</li>';
+      if (g.canCut) {
+        if (g.big && g.big.perUnit >= g.gap) {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) +
+            ' per sale</strong> \u2014 for example your biggest cost (' + esc(g.big.label) + ', ' +
+            fmtMoney(g.big.perUnit) + '/sale) would drop to <strong>' + fmtMoney(g.big.perUnit - g.gap) + '</strong></li>';
+        } else if (g.big) {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) +
+            ' per sale</strong> \u2014 your biggest cost (' + esc(g.big.label) + ', ' + fmtMoney(g.big.perUnit) +
+            '/sale) isn\u2019t big enough on its own, so combine several costs</li>';
+        } else {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) + ' per sale</strong></li>';
+        }
+      }
+      html += '</ul>';
+      out.innerHTML = html;
+    }
+
+    input.addEventListener('input', recalc);
+    recalc();
   }
 
   function wireWhatIf(p) {
@@ -841,6 +930,58 @@
   }
 
   /* =============================================================
+     CSV EXPORT / IMPORT
+     ============================================================= */
+  function exportCsv() {
+    if (!state.products.length) {
+      toast('Add a product first \u2014 there is nothing to export yet.');
+      return;
+    }
+    var csv = CSV.toCsv(state.products);
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'profitleak-products.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('Exported ' + state.products.length + ' product(s) to CSV \u2713');
+  }
+
+  function importCsvText(text, fileName) {
+    var res = CSV.fromCsv(text);
+    if (!res.products.length) {
+      toast('No valid products found in \u201C' + esc(fileName) +
+            '\u201D. The file needs a header row with at least: Name, Selling Price, Units Sold.');
+      return;
+    }
+    var msg = 'Found ' + res.products.length + ' valid product(s)' +
+      (res.skipped ? ' and skipped ' + res.skipped + ' invalid row(s)' : '') +
+      ' in \u201C' + fileName + '\u201D. Add them to your dashboard?';
+    confirmDialog({
+      title: 'Import products from CSV',
+      message: msg,
+      confirmText: 'Add ' + res.products.length + ' product' + (res.products.length > 1 ? 's' : '')
+    }).then(function (ok) {
+      if (!ok) return;
+      state.products = state.products.concat(res.products);
+      persist();
+      render();
+      toast('Imported ' + res.products.length + ' product(s) \u2713');
+    });
+  }
+
+  function onCsvFileChosen(e) {
+    var input = e.target;
+    var file = input.files && input.files[0];
+    input.value = ''; // allow re-choosing the same file
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () { importCsvText(String(reader.result), file.name); };
+    reader.onerror = function () { toast('Could not read the file. Please try again.'); };
+    reader.readAsText(file);
+  }
+
+  /* =============================================================
      TOASTS + CONFIRM DIALOG
      ============================================================= */
   function toast(message, opts) {
@@ -928,6 +1069,15 @@
       else if (act === 'view') { e.preventDefault(); location.hash = '#/product/' + encodeURIComponent(id); }
       else if (act === 'load-samples') { loadSamplesFlow(); }
       else if (act === 'clear-all') { clearAllFlow(); }
+      else if (act === 'export-csv') { exportCsv(); }
+      else if (act === 'import-csv') { $('#csv-file').click(); }
+      return;
+    }
+
+    var chip = e.target.closest ? e.target.closest('[data-filter]') : null;
+    if (chip) {
+      state.filter = chip.getAttribute('data-filter');
+      renderDashboard();
       return;
     }
 
@@ -972,6 +1122,8 @@
       }
       updateLivePreview();
     });
+
+    $('#csv-file').addEventListener('change', onCsvFileChosen);
 
     document.addEventListener('click', onGlobalClick);
     document.addEventListener('keydown', onGlobalKeydown);

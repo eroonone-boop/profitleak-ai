@@ -17,6 +17,7 @@ try { jsdom = require('jsdom'); } catch (e) {
 
 const assert = require('node:assert/strict');
 const path = require('path');
+const { CSV } = require('../js/data.js');
 const { JSDOM, VirtualConsole } = jsdom;
 
 function tick(ms) { return new Promise(r => setTimeout(r, ms || 70)); }
@@ -106,6 +107,30 @@ async function main() {
     assert.ok(rows[0].textContent.includes('Advertising')); // biggest first
   });
 
+  /* ---- profit goal finder ---- */
+  test('what-if: simulator now covers price + all 6 costs (7 rows)', () => {
+    assert.equal(d.querySelectorAll('.wi-slider').length, 7);
+    assert.equal(d.querySelectorAll('.wi-num').length, 7);
+  });
+  const goalInput = d.querySelector('#goal-input');
+  goalInput.value = '2';
+  goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('goal: shows required price ($15.75), gap ($2.76) and biggest-cost route ($2.74)', () => {
+    const t = d.querySelector('#goal-out').textContent;
+    assert.ok(t.includes('$15.75') && t.includes('$2.76') && t.includes('would drop to $2.74'));
+  });
+  goalInput.value = '0.5';
+  goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('goal: 50c target still met-free (needs +$1.26)', () =>
+    assert.ok(d.querySelector('#goal-out').textContent.includes('$1.26')));
+  goalInput.value = '';
+  goalInput.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('goal: empty input shows the hint', () =>
+    assert.ok(d.querySelector('#goal-out').textContent.includes('Type a target profit')));
+
   /* ---- what-if simulator ---- */
   const adSlider = d.querySelector('[data-wi-slider="adCostPerSale"]');
   adSlider.value = '0';
@@ -125,6 +150,14 @@ async function main() {
   await tick(30);
   test('what-if: break-even price shows +$380.00 improvement', () =>
     assert.ok(d.querySelector('#wi-results').textContent.includes('+$380.00')));
+  d.querySelector('#wi-reset').click();
+  await tick(30);
+  const feesNum = d.querySelector('[data-wi-num="platformFees"]');
+  feesNum.value = '0';
+  feesNum.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await tick(30);
+  test('what-if: fees to $0 shows +$975.00 (fees are adjustable too)', () =>
+    assert.ok(d.querySelector('#wi-results').textContent.includes('+$975.00')));
   d.querySelector('#wi-reset').click();
   await tick(30);
   d.querySelector('[data-wi-slider="adCostPerSale"]').value = '0';
@@ -199,6 +232,73 @@ async function main() {
   d.getElementById('modal-confirm').click();
   await tick();
   test('product deleted \u2014 back to 6 rows', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+
+  /* ---- status filter chips ---- */
+  const allBadges = Array.from(d.querySelectorAll('#table-wrap .badge'));
+  const nLosing = allBadges.filter(b => b.classList.contains('badge-red')).length;
+  const nLow = allBadges.filter(b => b.classList.contains('badge-amber')).length;
+  const nProfitable = allBadges.filter(b => b.classList.contains('badge-green')).length;
+  test('filter chips render with correct counts', () => {
+    const chips = Array.from(d.querySelectorAll('#table-filters .chip'));
+    assert.equal(chips.length, 4);
+    assert.ok(chips[0].textContent.includes('All'));
+    assert.ok(chips.find(c => c.textContent.includes('Losing money')).textContent.includes(String(nLosing)));
+    assert.ok(chips.find(c => c.textContent.includes('Low profit')).textContent.includes(String(nLow)));
+    assert.ok(chips.find(c => c.textContent.includes('Profitable')).textContent.includes(String(nProfitable)));
+  });
+  d.querySelector('[data-filter="losing"]').click();
+  await tick();
+  test('filter: losing chip shows exactly the losing products', () => {
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, nLosing);
+    assert.equal(d.querySelectorAll('#table-wrap .badge-red').length, nLosing);
+  });
+  d.querySelector('[data-filter="profitable"]').click();
+  await tick();
+  test('filter: profitable chip shows exactly the profitable products', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, nProfitable));
+  d.querySelector('#table-filters [data-filter="all"]').click();
+  await tick();
+  test('filter: back to all shows every product again', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+
+  /* ---- CSV export & import ---- */
+  d.querySelector('[data-action="export-csv"]').click();
+  await tick(30);
+  test('CSV export shows a confirmation toast', () =>
+    assert.ok(Array.from(d.querySelectorAll('#toast-container .toast'))
+      .some(t => t.textContent.includes('Exported 6 product(s)'))));
+
+  const csvText = CSV.toCsv([
+    { name: 'Imported Lamp', sellingPrice: 15, purchaseCost: 6, adCostPerSale: 1.5,
+      shippingCost: 2, platformFees: 1.2, discountPerSale: 0, returnCostPerSale: 0.5, unitsSold: 30 },
+    { name: 'Imported Poster', sellingPrice: 9.99, purchaseCost: 2, adCostPerSale: 2,
+      shippingCost: 1.5, platformFees: 0.9, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 60 }
+  ]);
+  const fileInput = d.getElementById('csv-file');
+  const fakeFile = new w.File([csvText], 'import-test.csv', { type: 'text/csv' });
+  Object.defineProperty(fileInput, 'files', { value: [fakeFile], configurable: true });
+  fileInput.dispatchEvent(new w.Event('change', { bubbles: true }));
+  await tick(200);
+  test('CSV import opens a confirm dialog listing 2 valid products', () => {
+    assert.ok(!d.querySelector('#modal-overlay').hidden);
+    assert.ok(d.querySelector('#modal-message').textContent.includes('2 valid product'));
+  });
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('CSV import adds both products (8 rows total)', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 8));
+  test('imported lamp is flagged PROFITABLE with correct math', () => {
+    const row = Array.from(d.querySelectorAll('#table-wrap tbody tr'))
+      .find(r => r.textContent.includes('Imported Lamp'));
+    assert.ok(row && row.querySelector('.badge-green'));
+    assert.ok(row.textContent.includes('$114.00')); // 30 × (15 − 11.2)
+  });
+  d.querySelector('[data-action="load-samples"]').click();
+  await tick(30);
+  d.getElementById('modal-confirm').click();
+  await tick();
+  test('load samples (via confirm) resets the dashboard to 6 rows', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
 
   /* ---- live calculation preview ---- */

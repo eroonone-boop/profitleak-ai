@@ -218,6 +218,33 @@ test('what-if: combined changes compose correctly', () => {
   const r = calc.simulate(phone, { sellingPrice: 14.99, adCostPerSale: 2 });
   assert.ok(near(r.diffTotal, 2750) && near(r.metrics.trueProfit, 2370));
 });
+test('what-if: fees and discounts are also adjustable', () => {
+  const r = calc.simulate(phone, { platformFees: 0, discountPerSale: 0 });
+  assert.ok(near(r.diffTotal, 1225));
+});
+test('what-if: negative or invalid changes are ignored', () => {
+  const r = calc.simulate(phone, { adCostPerSale: -5 });
+  assert.ok(near(r.diffTotal, 0));
+});
+
+/* ---------- 6f) Profit goal planner ---------- */
+test('goal: already-met target returns met', () => {
+  const g = calc.goalPlan(byName('Wireless Earbuds Pro'), em, 5);
+  assert.ok(g.met && near(g.current, 10.49));
+});
+test('goal: phone case $2/sale needs +$2.76, price $15.75, ads to $2.74', () => {
+  const g = calc.goalPlan(phone, pm, 2);
+  assert.ok(!g.met && near(g.gap, 2.76) && near(g.requiredPrice, 15.75));
+  assert.ok(g.canCut && g.big.key === 'ad' && near(g.big.perUnit - g.gap, 2.74));
+});
+test('goal: unreachable by cost cuts alone is flagged', () => {
+  const p2 = { sellingPrice: 10, purchaseCost: 2, adCostPerSale: 0, shippingCost: 0,
+               platformFees: 0, discountPerSale: 0, returnCostPerSale: 0, unitsSold: 1 };
+  const g = calc.goalPlan(p2, calc.computeMetrics(p2), 15);
+  assert.ok(!g.canCut && near(g.requiredPrice, 17));
+});
+test('goal: invalid target returns null', () =>
+  assert.equal(calc.goalPlan(phone, pm, 0), null));
 
 /* ---------- 7) Portfolio summary (dashboard KPIs) ---------- */
 const s = calc.summarizePortfolio(SAMPLE_PRODUCTS);

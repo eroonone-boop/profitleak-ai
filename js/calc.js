@@ -336,19 +336,21 @@
     };
   }
 
-  /* What-if: recompute the whole profit picture with up to four changed inputs */
+  /* What-if: recompute the whole profit picture with any changed inputs */
+  var SIM_KEYS = ['sellingPrice', 'purchaseCost', 'adCostPerSale', 'shippingCost',
+                  'platformFees', 'discountPerSale', 'returnCostPerSale'];
+
   function simulate(p, changes) {
     var current = computeMetrics(p);
     var test = {
-      sellingPrice:      changes.sellingPrice  !== undefined ? changes.sellingPrice  : p.sellingPrice,
-      purchaseCost:      changes.purchaseCost  !== undefined ? changes.purchaseCost  : p.purchaseCost,
-      adCostPerSale:     changes.adCostPerSale !== undefined ? changes.adCostPerSale : p.adCostPerSale,
-      shippingCost:      changes.shippingCost  !== undefined ? changes.shippingCost  : p.shippingCost,
-      platformFees:      p.platformFees,
-      discountPerSale:   p.discountPerSale,
-      returnCostPerSale: p.returnCostPerSale,
-      unitsSold:         p.unitsSold
+      sellingPrice: p.sellingPrice, purchaseCost: p.purchaseCost,
+      adCostPerSale: p.adCostPerSale, shippingCost: p.shippingCost,
+      platformFees: p.platformFees, discountPerSale: p.discountPerSale,
+      returnCostPerSale: p.returnCostPerSale, unitsSold: p.unitsSold
     };
+    SIM_KEYS.forEach(function (k) {
+      if (changes[k] !== undefined && isFinite(changes[k]) && changes[k] >= 0) test[k] = changes[k];
+    });
     var next = computeMetrics(test);
     return {
       product: test,
@@ -356,6 +358,21 @@
       diffPerUnit: next.profitPerUnit - current.profitPerUnit,
       diffTotal: next.trueProfit - current.trueProfit
     };
+  }
+
+  /* Profit goal: what does it take to earn $X per sale? */
+  function goalPlan(p, m, targetPerUnit) {
+    if (!isFinite(targetPerUnit) || targetPerUnit <= 0) return null;
+    var current = m.profitPerUnit;
+    if (targetPerUnit <= current + 1e-9) {
+      return { met: true, current: current, target: targetPerUnit };
+    }
+    var gap = targetPerUnit - current;
+    var requiredPrice = m.totalCostPerUnit + targetPerUnit;
+    var canCut = gap <= m.totalCostPerUnit + 1e-9;
+    var big = biggestCost(p);
+    return { met: false, current: current, target: targetPerUnit, gap: gap,
+             requiredPrice: requiredPrice, canCut: canCut, big: big };
   }
 
   /* =============================================================
@@ -396,6 +413,7 @@
     shortRecommendation: shortRecommendation,
     diagnose: diagnose,
     simulate: simulate,
+    goalPlan: goalPlan,
     summarizePortfolio: summarizePortfolio
   };
 

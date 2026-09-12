@@ -95,6 +95,7 @@ profitleak-ai/
 │   └── app.js              ← UI: routing, dashboard, form, validation, toasts
 ├── tests/
 │   ├── calc.test.js        ← engine tests (run: node tests/calc.test.js)
+│   ├── csv.test.js         ← CSV export/import tests
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -106,13 +107,16 @@ profitleak-ai/
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine tests + full app click-through
+npm test               # engine + CSV + full app click-through tests
 npm run test:calc      # engine tests only (zero dependencies)
+npm run test:csv       # CSV export/import tests (zero dependencies)
 ```
 
 The engine tests verify every formula and recommendation against hand-calculated
-values; the smoke test loads the real app headlessly and walks the whole journey:
-landing → dashboard → analysis → add → validate → save → delete → live preview.
+values; the CSV tests verify round-trips, quoting and validation; the smoke test
+loads the real app headlessly and walks the whole journey: landing → dashboard →
+analysis → diagnosis → goal → simulator → filters → CSV import/export → add →
+validate → save → delete → live preview.
 
 ## 🛠 Rebuild the single-file version
 

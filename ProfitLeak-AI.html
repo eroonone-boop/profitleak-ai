@@ -620,6 +620,44 @@ button { font-family: inherit; }
 
 .table-responsive { overflow-x: auto; }
 
+/* --- status filter chips --- */
+.table-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.chip:hover { border-color: #c7d2fe; color: var(--primary-600); }
+
+.chip-active { background: var(--primary-soft); border-color: #c7d2fe; color: var(--primary-600); }
+
+.chip-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.chip-dot-all         { background: #94a3b8; }
+.chip-dot-losing      { background: var(--red-strong); }
+.chip-dot-low         { background: var(--amber-strong); }
+.chip-dot-profitable  { background: var(--green-strong); }
+
+.chip-count {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.chip-active .chip-count { background: #fff; }
+
 .data-table { width: 100%; border-collapse: collapse; min-width: 960px; }
 
 .data-table th {
@@ -1199,6 +1237,68 @@ th.num, td.num { text-align: right; }
 .wi-verdict-neg     { background: var(--red-bg);   border-color: #fecaca; color: #7f1d1d; }
 .wi-verdict-neutral { background: var(--surface-2); border-color: var(--border); color: var(--text-muted); }
 
+/* --- profit goal finder --- */
+.goal-block { margin-top: 18px; border-top: 1px dashed var(--border); padding-top: 18px; }
+
+.goal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.goal-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 5px 10px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.goal-input-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
+
+.goal-currency { color: var(--text-muted); font-weight: 700; }
+
+#goal-input {
+  border: none;
+  outline: none;
+  width: 84px;
+  font-size: 15px;
+  font-weight: 800;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  text-align: right;
+}
+#goal-input::-webkit-outer-spin-button,
+#goal-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#goal-input { -moz-appearance: textfield; appearance: textfield; }
+
+.goal-per { color: var(--text-muted); font-size: 12.5px; font-weight: 600; }
+
+.goal-out { margin-top: 12px; font-size: 14px; line-height: 1.65; }
+.goal-hint { color: var(--text-muted); font-size: 13px; }
+
+.goal-met {
+  background: var(--green-bg);
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.goal-ways { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.goal-ways li {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 13px;
+}
+
 /* --- what-if simulator on tablet/mobile --- */
 @media (max-width: 900px) {
   .wi-row {
@@ -1623,10 +1723,14 @@ th.num, td.num { text-align: right; }
             <p class="card-sub">Click a column to sort · click a row for the full analysis.</p>
           </div>
           <div class="table-tools">
+            <button class="btn btn-ghost btn-sm" type="button" data-action="export-csv">Export CSV</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="import-csv">Import CSV</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="load-samples">Load sample data</button>
             <button class="btn btn-ghost btn-sm danger-text" type="button" data-action="clear-all">Clear all</button>
+            <input type="file" id="csv-file" accept=".csv,text/csv" hidden>
           </div>
         </div>
+        <div class="table-filters" id="table-filters"></div>
         <div class="table-responsive" id="table-wrap"></div>
       </div>
     </section>
@@ -1900,6 +2004,134 @@ th.num, td.num { text-align: right; }
     });
   }
 
+  /* =============================================================
+     CSV export / import (pure functions — also used by the tests)
+     ============================================================= */
+  var CSV_HEADERS = ['Name', 'Selling Price', 'Purchase Cost', 'Ad Cost per Sale',
+                     'Shipping Cost', 'Platform Fees', 'Discount per Sale',
+                     'Return Cost per Sale', 'Units Sold'];
+
+  var CSV_KEYS = ['name', 'sellingPrice', 'purchaseCost', 'adCostPerSale',
+                  'shippingCost', 'platformFees', 'discountPerSale',
+                  'returnCostPerSale', 'unitsSold'];
+
+  function csvEscape(v) {
+    var s = String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function toCsv(products) {
+    var lines = [CSV_HEADERS.join(',')];
+    products.forEach(function (p) {
+      lines.push(CSV_KEYS.map(function (k) { return csvEscape(p[k]); }).join(','));
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  /* Minimal but correct CSV parser: handles quoted fields, doubled
+     quotes, commas inside quotes and CRLF line endings. */
+  function parseCsv(text) {
+    var rows = [], cur = [], field = '', inQ = false, i, c;
+    text = String(text);
+    for (i = 0; i < text.length; i++) {
+      c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQ = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQ = true;
+      } else if (c === ',') {
+        cur.push(field); field = '';
+      } else if (c === '\n') {
+        cur.push(field); field = ''; rows.push(cur); cur = [];
+      } else if (c !== '\r') {
+        field += c;
+      }
+    }
+    if (field !== '' || cur.length) { cur.push(field); rows.push(cur); }
+    return rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ''); });
+  }
+
+  var HEADER_ALIASES = (function () {
+    var map = {};
+    CSV_KEYS.forEach(function (k, i) {
+      map[CSV_HEADERS[i].toLowerCase().replace(/[^a-z0-9]/g, '')] = k;
+    });
+    // a few friendly alternatives
+    map['price'] = 'sellingPrice';
+    map['sellingprice'] = 'sellingPrice';
+    map['adcost'] = 'adCostPerSale';
+    map['advertisingcost'] = 'adCostPerSale';
+    map['units'] = 'unitsSold';
+    map['qty'] = 'unitsSold';
+    return map;
+  })();
+
+  function validCsvRow(o) {
+    if (!o.name || !String(o.name).trim()) return false;
+    var price = Number(o.sellingPrice);
+    if (!isFinite(price) || price <= 0) return false;
+    var units = Number(o.unitsSold);
+    if (!isFinite(units) || units < 1 || !Number.isInteger(units)) return false;
+    var costKeys = ['purchaseCost', 'adCostPerSale', 'shippingCost',
+                    'platformFees', 'discountPerSale', 'returnCostPerSale'];
+    for (var i = 0; i < costKeys.length; i++) {
+      // a missing cost column counts as $0 — not an error
+      var v = Number(o[costKeys[i]] === undefined ? 0 : o[costKeys[i]]);
+      if (!isFinite(v) || v < 0) return false;
+    }
+    return true;
+  }
+
+  /* Parse CSV text into products. Returns { products, skipped }.
+     Requires a header row; missing cost columns default to 0. */
+  function fromCsv(text) {
+    var rows = parseCsv(text);
+    if (!rows.length) return { products: [], skipped: 0 };
+
+    var header = rows[0].map(function (h) {
+      return HEADER_ALIASES[String(h).toLowerCase().replace(/[^a-z0-9]/g, '')] || null;
+    });
+    if (header.indexOf('name') === -1 || header.indexOf('sellingPrice') === -1 ||
+        header.indexOf('unitsSold') === -1) {
+      return { products: [], skipped: Math.max(0, rows.length - 1) };
+    }
+
+    var products = [], skipped = 0;
+    rows.slice(1).forEach(function (cells) {
+      var o = {};
+      header.forEach(function (key, idx) {
+        if (!key) return; // unknown column — ignored
+        var cell = cells[idx];
+        if (cell === undefined) return;
+        if (key === 'name') o.name = String(cell).trim().slice(0, 120);
+        else if (cell !== '') o[key] = cell.trim();
+      });
+      if (validCsvRow(o)) {
+        products.push({
+          id: uid(),
+          name: o.name,
+          sellingPrice: Number(o.sellingPrice),
+          purchaseCost: Number(o.purchaseCost || 0),
+          adCostPerSale: Number(o.adCostPerSale || 0),
+          shippingCost: Number(o.shippingCost || 0),
+          platformFees: Number(o.platformFees || 0),
+          discountPerSale: Number(o.discountPerSale || 0),
+          returnCostPerSale: Number(o.returnCostPerSale || 0),
+          unitsSold: Number(o.unitsSold),
+          createdAt: new Date().toISOString()
+        });
+      } else if (Object.keys(o).length) {
+        skipped++;
+      }
+    });
+    return { products: products, skipped: skipped };
+  }
+
+  var CSV = { HEADERS: CSV_HEADERS, KEYS: CSV_KEYS, toCsv: toCsv, parseCsv: parseCsv, fromCsv: fromCsv };
+
   /* ---------- Public store API ---------- */
   var Store = {
 
@@ -1945,10 +2177,11 @@ th.num, td.num { text-align: right; }
   };
 
   global.PL_STORE = Store;
+  global.PL_CSV = CSV;
 
   /* Node.js export (used by the automated tests) */
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS };
+    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV };
   }
 
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2293,19 +2526,21 @@ th.num, td.num { text-align: right; }
     };
   }
 
-  /* What-if: recompute the whole profit picture with up to four changed inputs */
+  /* What-if: recompute the whole profit picture with any changed inputs */
+  var SIM_KEYS = ['sellingPrice', 'purchaseCost', 'adCostPerSale', 'shippingCost',
+                  'platformFees', 'discountPerSale', 'returnCostPerSale'];
+
   function simulate(p, changes) {
     var current = computeMetrics(p);
     var test = {
-      sellingPrice:      changes.sellingPrice  !== undefined ? changes.sellingPrice  : p.sellingPrice,
-      purchaseCost:      changes.purchaseCost  !== undefined ? changes.purchaseCost  : p.purchaseCost,
-      adCostPerSale:     changes.adCostPerSale !== undefined ? changes.adCostPerSale : p.adCostPerSale,
-      shippingCost:      changes.shippingCost  !== undefined ? changes.shippingCost  : p.shippingCost,
-      platformFees:      p.platformFees,
-      discountPerSale:   p.discountPerSale,
-      returnCostPerSale: p.returnCostPerSale,
-      unitsSold:         p.unitsSold
+      sellingPrice: p.sellingPrice, purchaseCost: p.purchaseCost,
+      adCostPerSale: p.adCostPerSale, shippingCost: p.shippingCost,
+      platformFees: p.platformFees, discountPerSale: p.discountPerSale,
+      returnCostPerSale: p.returnCostPerSale, unitsSold: p.unitsSold
     };
+    SIM_KEYS.forEach(function (k) {
+      if (changes[k] !== undefined && isFinite(changes[k]) && changes[k] >= 0) test[k] = changes[k];
+    });
     var next = computeMetrics(test);
     return {
       product: test,
@@ -2313,6 +2548,21 @@ th.num, td.num { text-align: right; }
       diffPerUnit: next.profitPerUnit - current.profitPerUnit,
       diffTotal: next.trueProfit - current.trueProfit
     };
+  }
+
+  /* Profit goal: what does it take to earn $X per sale? */
+  function goalPlan(p, m, targetPerUnit) {
+    if (!isFinite(targetPerUnit) || targetPerUnit <= 0) return null;
+    var current = m.profitPerUnit;
+    if (targetPerUnit <= current + 1e-9) {
+      return { met: true, current: current, target: targetPerUnit };
+    }
+    var gap = targetPerUnit - current;
+    var requiredPrice = m.totalCostPerUnit + targetPerUnit;
+    var canCut = gap <= m.totalCostPerUnit + 1e-9;
+    var big = biggestCost(p);
+    return { met: false, current: current, target: targetPerUnit, gap: gap,
+             requiredPrice: requiredPrice, canCut: canCut, big: big };
   }
 
   /* =============================================================
@@ -2353,6 +2603,7 @@ th.num, td.num { text-align: right; }
     shortRecommendation: shortRecommendation,
     diagnose: diagnose,
     simulate: simulate,
+    goalPlan: goalPlan,
     summarizePortfolio: summarizePortfolio
   };
 
@@ -2583,6 +2834,7 @@ th.num, td.num { text-align: right; }
   var CALC = window.PL_CALC;
   var Store = window.PL_STORE;
   var Charts = window.PL_CHARTS;
+  var CSV = window.PL_CSV;
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -2630,6 +2882,7 @@ th.num, td.num { text-align: right; }
   var state = {
     products: [],
     editingId: null,
+    filter: 'all',
     sort: { key: 'trueProfit', dir: 'asc' } // worst profit first by default
   };
 
@@ -2783,7 +3036,19 @@ th.num, td.num { text-align: right; }
     });
     $('#chart-costs').innerHTML = Charts.costDonut(Object.keys(byKey).map(function (k) { return byKey[k]; }));
 
-    /* ----- Table ----- */
+    /* ----- filter chips + table ----- */
+    var chips = [
+      { key: 'all', label: 'All', count: s.count },
+      { key: 'losing', label: 'Losing money', count: s.losing },
+      { key: 'low', label: 'Low profit', count: s.low },
+      { key: 'profitable', label: 'Profitable', count: s.profitable }
+    ];
+    $('#table-filters').innerHTML = chips.map(function (c) {
+      return '<button type="button" class="chip' + (state.filter === c.key ? ' chip-active' : '') +
+        '" data-filter="' + c.key + '"><span class="chip-dot chip-dot-' + c.key + '"></span>' +
+        c.label + '<span class="chip-count">' + c.count + '</span></button>';
+    }).join('');
+
     $('#table-wrap').innerHTML = buildTable();
   }
 
@@ -2835,7 +3100,21 @@ th.num, td.num { text-align: right; }
       return '<th scope="col"' + attrs + '>' + c[1] + ind + '</th>';
     }).join('');
 
-    var body = sortedRows().map(rowHtml).join('');
+    var body = sortedRows();
+    if (state.filter && state.filter !== 'all') {
+      body = body.filter(function (r) { return CALC.getStatus(r.m).toLowerCase() === state.filter; });
+    }
+    if (!body.length) {
+      return '<div class="empty-state">' +
+               '<div class="empty-icon" aria-hidden="true">\uD83D\uDD0E</div>' +
+               '<h3>No products in this view</h3>' +
+               '<p>No products currently match this filter.</p>' +
+               '<div class="empty-actions">' +
+                 '<button class="btn btn-ghost" type="button" data-filter="all">Show all products</button>' +
+               '</div>' +
+             '</div>';
+    }
+    body = body.map(rowHtml).join('');
 
     return '<table class="data-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
   }
@@ -3040,9 +3319,12 @@ th.num, td.num { text-align: right; }
      ============================================================= */
   var WI_FIELDS = [
     ['sellingPrice', 'Selling price'],
-    ['adCostPerSale', 'Advertising cost'],
     ['purchaseCost', 'Purchase cost'],
-    ['shippingCost', 'Shipping cost']
+    ['adCostPerSale', 'Advertising cost'],
+    ['shippingCost', 'Shipping cost'],
+    ['platformFees', 'Platform/payment fees'],
+    ['discountPerSale', 'Discount'],
+    ['returnCostPerSale', 'Return/refund cost']
   ];
 
   function wiNiceMax(v) { return Math.ceil(Math.max(v * 2, 1) * 10) / 10; }
@@ -3131,9 +3413,67 @@ th.num, td.num { text-align: right; }
           '<div class="wi-rows">' + wiRows + '</div>' +
           '<div class="wi-results" id="wi-results"></div>' +
         '</div>' +
+        '<div class="goal-block">' +
+          '<div class="goal-head">' +
+            '<label for="goal-input">\uD83C\uDFAF Profit goal \u2014 I want to earn</label>' +
+            '<span class="goal-input-wrap">' +
+              '<span class="goal-currency">$</span>' +
+              '<input type="number" id="goal-input" min="0" step="any" inputmode="decimal" placeholder="2.00" aria-label="Target profit per sale">' +
+              '<span class="goal-per">per sale</span>' +
+            '</span>' +
+          '</div>' +
+          '<div class="goal-out" id="goal-out"></div>' +
+        '</div>' +
       '</div>';
 
     wireWhatIf(p);
+    wireGoal(p, m);
+  }
+
+  /* ---------- profit goal finder ---------- */
+  function wireGoal(p, m) {
+    var input = $('#goal-input');
+    var out = $('#goal-out');
+
+    function recalc() {
+      var t = parseFloat(input.value);
+      if (input.value === '' || !isFinite(t) || t < 0) {
+        out.innerHTML = '<p class="goal-hint">Type a target profit per sale \u2014 we\u2019ll show the exact price or cost cut that reaches it.</p>';
+        return;
+      }
+      var g = CALC.goalPlan(p, m, t);
+      if (g.met) {
+        out.innerHTML = '<p class="goal-met">\u2705 You already earn <strong>' + fmtMoney(g.current) +
+          '</strong> per sale \u2014 above your ' + fmtMoney(g.target) + ' goal. No changes needed.</p>';
+        return;
+      }
+      var html = '<p>To reach <strong>' + fmtMoney(g.target) + ' per sale</strong> you need <strong>+' +
+        fmtMoney(g.gap) + ' per sale</strong>. ' +
+        (g.canCut ? 'Two ways to get there:' :
+          'Even with <strong>all costs at $0.00</strong>, your current price only earns ' +
+          fmtMoney(p.sellingPrice) + ' per sale, so:') + '</p>';
+      html += '<ul class="goal-ways">';
+      html += '<li>\uD83D\uDCB0 Raise your selling price to <strong>' + fmtMoney(g.requiredPrice) +
+        '</strong> (currently ' + fmtMoney(p.sellingPrice) + ')</li>';
+      if (g.canCut) {
+        if (g.big && g.big.perUnit >= g.gap) {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) +
+            ' per sale</strong> \u2014 for example your biggest cost (' + esc(g.big.label) + ', ' +
+            fmtMoney(g.big.perUnit) + '/sale) would drop to <strong>' + fmtMoney(g.big.perUnit - g.gap) + '</strong></li>';
+        } else if (g.big) {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) +
+            ' per sale</strong> \u2014 your biggest cost (' + esc(g.big.label) + ', ' + fmtMoney(g.big.perUnit) +
+            '/sale) isn\u2019t big enough on its own, so combine several costs</li>';
+        } else {
+          html += '<li>\u2702\uFE0F Cut total costs by <strong>' + fmtMoney(g.gap) + ' per sale</strong></li>';
+        }
+      }
+      html += '</ul>';
+      out.innerHTML = html;
+    }
+
+    input.addEventListener('input', recalc);
+    recalc();
   }
 
   function wireWhatIf(p) {
@@ -3415,6 +3755,58 @@ th.num, td.num { text-align: right; }
   }
 
   /* =============================================================
+     CSV EXPORT / IMPORT
+     ============================================================= */
+  function exportCsv() {
+    if (!state.products.length) {
+      toast('Add a product first \u2014 there is nothing to export yet.');
+      return;
+    }
+    var csv = CSV.toCsv(state.products);
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'profitleak-products.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('Exported ' + state.products.length + ' product(s) to CSV \u2713');
+  }
+
+  function importCsvText(text, fileName) {
+    var res = CSV.fromCsv(text);
+    if (!res.products.length) {
+      toast('No valid products found in \u201C' + esc(fileName) +
+            '\u201D. The file needs a header row with at least: Name, Selling Price, Units Sold.');
+      return;
+    }
+    var msg = 'Found ' + res.products.length + ' valid product(s)' +
+      (res.skipped ? ' and skipped ' + res.skipped + ' invalid row(s)' : '') +
+      ' in \u201C' + fileName + '\u201D. Add them to your dashboard?';
+    confirmDialog({
+      title: 'Import products from CSV',
+      message: msg,
+      confirmText: 'Add ' + res.products.length + ' product' + (res.products.length > 1 ? 's' : '')
+    }).then(function (ok) {
+      if (!ok) return;
+      state.products = state.products.concat(res.products);
+      persist();
+      render();
+      toast('Imported ' + res.products.length + ' product(s) \u2713');
+    });
+  }
+
+  function onCsvFileChosen(e) {
+    var input = e.target;
+    var file = input.files && input.files[0];
+    input.value = ''; // allow re-choosing the same file
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () { importCsvText(String(reader.result), file.name); };
+    reader.onerror = function () { toast('Could not read the file. Please try again.'); };
+    reader.readAsText(file);
+  }
+
+  /* =============================================================
      TOASTS + CONFIRM DIALOG
      ============================================================= */
   function toast(message, opts) {
@@ -3502,6 +3894,15 @@ th.num, td.num { text-align: right; }
       else if (act === 'view') { e.preventDefault(); location.hash = '#/product/' + encodeURIComponent(id); }
       else if (act === 'load-samples') { loadSamplesFlow(); }
       else if (act === 'clear-all') { clearAllFlow(); }
+      else if (act === 'export-csv') { exportCsv(); }
+      else if (act === 'import-csv') { $('#csv-file').click(); }
+      return;
+    }
+
+    var chip = e.target.closest ? e.target.closest('[data-filter]') : null;
+    if (chip) {
+      state.filter = chip.getAttribute('data-filter');
+      renderDashboard();
       return;
     }
 
@@ -3546,6 +3947,8 @@ th.num, td.num { text-align: right; }
       }
       updateLivePreview();
     });
+
+    $('#csv-file').addEventListener('change', onCsvFileChosen);
 
     document.addEventListener('click', onGlobalClick);
     document.addEventListener('keydown', onGlobalKeydown);

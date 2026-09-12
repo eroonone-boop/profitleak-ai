@@ -119,6 +119,134 @@
     });
   }
 
+  /* =============================================================
+     CSV export / import (pure functions — also used by the tests)
+     ============================================================= */
+  var CSV_HEADERS = ['Name', 'Selling Price', 'Purchase Cost', 'Ad Cost per Sale',
+                     'Shipping Cost', 'Platform Fees', 'Discount per Sale',
+                     'Return Cost per Sale', 'Units Sold'];
+
+  var CSV_KEYS = ['name', 'sellingPrice', 'purchaseCost', 'adCostPerSale',
+                  'shippingCost', 'platformFees', 'discountPerSale',
+                  'returnCostPerSale', 'unitsSold'];
+
+  function csvEscape(v) {
+    var s = String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function toCsv(products) {
+    var lines = [CSV_HEADERS.join(',')];
+    products.forEach(function (p) {
+      lines.push(CSV_KEYS.map(function (k) { return csvEscape(p[k]); }).join(','));
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  /* Minimal but correct CSV parser: handles quoted fields, doubled
+     quotes, commas inside quotes and CRLF line endings. */
+  function parseCsv(text) {
+    var rows = [], cur = [], field = '', inQ = false, i, c;
+    text = String(text);
+    for (i = 0; i < text.length; i++) {
+      c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQ = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQ = true;
+      } else if (c === ',') {
+        cur.push(field); field = '';
+      } else if (c === '\n') {
+        cur.push(field); field = ''; rows.push(cur); cur = [];
+      } else if (c !== '\r') {
+        field += c;
+      }
+    }
+    if (field !== '' || cur.length) { cur.push(field); rows.push(cur); }
+    return rows.filter(function (r) { return !(r.length === 1 && r[0].trim() === ''); });
+  }
+
+  var HEADER_ALIASES = (function () {
+    var map = {};
+    CSV_KEYS.forEach(function (k, i) {
+      map[CSV_HEADERS[i].toLowerCase().replace(/[^a-z0-9]/g, '')] = k;
+    });
+    // a few friendly alternatives
+    map['price'] = 'sellingPrice';
+    map['sellingprice'] = 'sellingPrice';
+    map['adcost'] = 'adCostPerSale';
+    map['advertisingcost'] = 'adCostPerSale';
+    map['units'] = 'unitsSold';
+    map['qty'] = 'unitsSold';
+    return map;
+  })();
+
+  function validCsvRow(o) {
+    if (!o.name || !String(o.name).trim()) return false;
+    var price = Number(o.sellingPrice);
+    if (!isFinite(price) || price <= 0) return false;
+    var units = Number(o.unitsSold);
+    if (!isFinite(units) || units < 1 || !Number.isInteger(units)) return false;
+    var costKeys = ['purchaseCost', 'adCostPerSale', 'shippingCost',
+                    'platformFees', 'discountPerSale', 'returnCostPerSale'];
+    for (var i = 0; i < costKeys.length; i++) {
+      // a missing cost column counts as $0 — not an error
+      var v = Number(o[costKeys[i]] === undefined ? 0 : o[costKeys[i]]);
+      if (!isFinite(v) || v < 0) return false;
+    }
+    return true;
+  }
+
+  /* Parse CSV text into products. Returns { products, skipped }.
+     Requires a header row; missing cost columns default to 0. */
+  function fromCsv(text) {
+    var rows = parseCsv(text);
+    if (!rows.length) return { products: [], skipped: 0 };
+
+    var header = rows[0].map(function (h) {
+      return HEADER_ALIASES[String(h).toLowerCase().replace(/[^a-z0-9]/g, '')] || null;
+    });
+    if (header.indexOf('name') === -1 || header.indexOf('sellingPrice') === -1 ||
+        header.indexOf('unitsSold') === -1) {
+      return { products: [], skipped: Math.max(0, rows.length - 1) };
+    }
+
+    var products = [], skipped = 0;
+    rows.slice(1).forEach(function (cells) {
+      var o = {};
+      header.forEach(function (key, idx) {
+        if (!key) return; // unknown column — ignored
+        var cell = cells[idx];
+        if (cell === undefined) return;
+        if (key === 'name') o.name = String(cell).trim().slice(0, 120);
+        else if (cell !== '') o[key] = cell.trim();
+      });
+      if (validCsvRow(o)) {
+        products.push({
+          id: uid(),
+          name: o.name,
+          sellingPrice: Number(o.sellingPrice),
+          purchaseCost: Number(o.purchaseCost || 0),
+          adCostPerSale: Number(o.adCostPerSale || 0),
+          shippingCost: Number(o.shippingCost || 0),
+          platformFees: Number(o.platformFees || 0),
+          discountPerSale: Number(o.discountPerSale || 0),
+          returnCostPerSale: Number(o.returnCostPerSale || 0),
+          unitsSold: Number(o.unitsSold),
+          createdAt: new Date().toISOString()
+        });
+      } else if (Object.keys(o).length) {
+        skipped++;
+      }
+    });
+    return { products: products, skipped: skipped };
+  }
+
+  var CSV = { HEADERS: CSV_HEADERS, KEYS: CSV_KEYS, toCsv: toCsv, parseCsv: parseCsv, fromCsv: fromCsv };
+
   /* ---------- Public store API ---------- */
   var Store = {
 
@@ -164,10 +292,11 @@
   };
 
   global.PL_STORE = Store;
+  global.PL_CSV = CSV;
 
   /* Node.js export (used by the automated tests) */
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS };
+    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV };
   }
 
 })(typeof window !== 'undefined' ? window : globalThis);
