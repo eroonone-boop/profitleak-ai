@@ -165,11 +165,31 @@
   /* =============================================================
      DASHBOARD
      ============================================================= */
-  function kpi(label, value, sub, tone) {
+  /* Plain-language help for the key metrics (dashboard tooltips) */
+  var HELP = {
+    products: 'Everything you have added to your dashboard. Click any product to see its full analysis.',
+    revenue: 'All the money your customers paid you, before any costs. It is selling price \u00D7 units sold.',
+    costs: 'Everything you spend to make the sale: purchase, advertising, shipping, platform fees, discounts and returns.',
+    profit: 'What really remains after subtracting ALL costs from your revenue. Green means you are earning, red means you are losing.',
+    losing: 'Products that lose money on every sale. They quietly eat your profit \u2014 fix or pause these first.',
+    low: 'Products earning less than a 15% margin. Profitable, but fragile \u2014 a small cost increase could turn them into losses.',
+    leak: 'The single cost that takes the biggest share of your money on this product.'
+  };
+
+  function helpBtn(key) {
+    return '<button type="button" class="help-btn" data-help="' + key +
+           '" aria-label="What does this mean?" aria-expanded="false">?</button>';
+  }
+  function helpBox(key) {
+    return '<div class="help-box" hidden>' + HELP[key] + '</div>';
+  }
+
+  function kpi(label, value, sub, tone, help) {
     return '<div class="kpi' + (tone ? ' ' + tone : '') + '">' +
-             '<div class="kpi-label">' + label + '</div>' +
+             '<div class="kpi-label">' + label + (help ? helpBtn(help) : '') + '</div>' +
              '<div class="kpi-value">' + value + '</div>' +
              '<div class="kpi-sub">' + sub + '</div>' +
+             (help ? helpBox(help) : '') +
            '</div>';
   }
 
@@ -180,20 +200,24 @@
     /* ----- plan banner (free users) ----- */
     renderPlanBanner();
 
-    /* ----- KPI cards ----- */
+    /* ----- Clear Demo Data button: only shown when demo products exist ----- */
+    var clearDemoBtn = $('#btn-clear-demo');
+    if (clearDemoBtn) clearDemoBtn.hidden = !state.products.some(Store.isDemoProduct);
+
+    /* ----- KPI cards (with plain-language help) ----- */
     $('#kpi-grid').innerHTML = [
-      kpi('Total products', s.count, 'in your dashboard', ''),
-      kpi('Total revenue', fmtMoney(s.revenue), 'selling price \u00D7 units sold', ''),
-      kpi('Total costs', fmtMoney(s.totalCost), 'all costs, all products', ''),
+      kpi('Total products', s.count, 'in your dashboard', '', 'products'),
+      kpi('Total revenue', fmtMoney(s.revenue), 'selling price \u00D7 units sold', '', 'revenue'),
+      kpi('Total costs', fmtMoney(s.totalCost), 'all costs, all products', '', 'costs'),
       kpi('True profit',
           '<span class="' + (s.trueProfit < 0 ? 'text-neg' : 'text-pos') + '">' + fmtMoney(s.trueProfit) + '</span>',
-          fmtPct(s.margin) + ' overall margin', s.trueProfit < 0 ? 'kpi-red' : 'kpi-green'),
-      kpi('Losing money', s.losing,
+          fmtPct(s.margin) + ' overall margin', s.trueProfit < 0 ? 'kpi-red' : 'kpi-green', 'profit'),
+      kpi('Losing products', s.losing,
           s.losing ? '\u2212' + usd.format(CALC.round2(s.totalLosses)) + ' in total losses' : 'none \u2014 nice work \uD83C\uDF89',
-          'kpi-red'),
-      kpi('Low profit', s.low,
+          'kpi-red', 'losing'),
+      kpi('Low-profit products', s.low,
           s.low ? 'margin under ' + T + '% \u2014 fragile' : 'none \u2014 nice work \uD83C\uDF89',
-          'kpi-amber')
+          'kpi-amber', 'low')
     ].join('');
 
     /* ----- Alert banners ----- */
@@ -263,11 +287,11 @@
     if (!state.products.length) {
       return '<div class="empty-state">' +
                '<div class="empty-icon" aria-hidden="true">\uD83D\uDCE6</div>' +
-               '<h3>No products yet</h3>' +
-               '<p>Add your first product, or load the sample data to explore how ProfitLeak AI works.</p>' +
+               '<h3>No products yet.</h3>' +
+               '<p>Add your first product or try the demo.</p>' +
                '<div class="empty-actions">' +
-                 '<a class="btn btn-primary" href="#/add">+ Add your first product</a>' +
-                 '<button class="btn btn-ghost" type="button" data-action="load-samples">Load sample data</button>' +
+                 '<a class="btn btn-primary" href="#/add">Add Product</a>' +
+                 '<button class="btn btn-ghost" type="button" data-action="load-samples">Try Demo Data</button>' +
                '</div>' +
              '</div>';
     }
@@ -315,9 +339,10 @@
     var rec0 = CALC.shortRecommendation(p, m);
     var profitCls = m.trueProfit < 0 ? 'text-neg' : 'text-pos';
 
+    var demoTag = Store.isDemoProduct(p) ? ' <span class="badge badge-demo">Demo Data</span>' : '';
     return '<tr class="clickable" data-id="' + esc(p.id) + '" tabindex="0" role="button" ' +
              'aria-label="View analysis for ' + esc(p.name) + '">' +
-      '<td data-label="Product"><span class="p-name">' + esc(p.name) + '</span></td>' +
+      '<td data-label="Product"><span class="p-name">' + esc(p.name) + '</span>' + demoTag + '</td>' +
       '<td data-label="Selling price" class="num">' + fmtMoney(p.sellingPrice) + '</td>' +
       '<td data-label="Units sold" class="num">' + m.units + '</td>' +
       '<td data-label="Revenue" class="num">' + fmtMoney(m.revenue) + '</td>' +
@@ -327,7 +352,7 @@
       '<td data-label="Status"><span class="badge ' + meta.cls + '">' + meta.label + '</span></td>' +
       '<td data-label="Recommendation"><div class="cell-rec">' + esc(rec0) + '</div></td>' +
       '<td data-label="Actions" class="row-actions">' +
-        '<button class="icon-btn" type="button" data-action="view" data-id="' + esc(p.id) + '" aria-label="View ' + esc(p.name) + '" title="View analysis">' + ICONS.eye + '</button>' +
+        '<button class="btn-view" type="button" data-action="view" data-id="' + esc(p.id) + '" aria-label="View Analysis: ' + esc(p.name) + '" title="View Analysis">' + ICONS.eye + '<span>View Analysis</span></button>' +
         '<button class="icon-btn" type="button" data-action="edit" data-id="' + esc(p.id) + '" aria-label="Edit ' + esc(p.name) + '" title="Edit product">' + ICONS.pencil + '</button>' +
         '<button class="icon-btn icon-btn-danger" type="button" data-action="delete" data-id="' + esc(p.id) + '" aria-label="Delete ' + esc(p.name) + '" title="Delete product">' + ICONS.trash + '</button>' +
       '</td>' +
@@ -569,10 +594,11 @@
     if (d.biggest) {
       tiles +=
         '<div class="diag-tile diag-leak">' +
-          '<div class="diag-label">Biggest profit leak</div>' +
+          '<div class="diag-label">Biggest profit leak ' + helpBtn('leak') + '</div>' +
           '<div class="diag-value">' + esc(d.biggest.label) + '</div>' +
           '<div class="diag-sub">' + fmtMoney(d.biggest.perUnit) + ' per sale \u00B7 ' +
             CALC.pct(d.biggest.shareOfCosts) + ' of your total costs</div>' +
+          helpBox('leak') +
         '</div>' +
         '<div class="diag-tile diag-action">' +
           '<div class="diag-label">Recommended action</div>' +
@@ -840,7 +866,7 @@
       '<a class="back-link" href="#/dashboard">\u2190 All products</a>' +
       '<div class="an-head-main">' +
         '<div>' +
-          '<h1>' + esc(p.name) + '</h1>' +
+          '<h1>' + esc(p.name) + (Store.isDemoProduct(p) ? ' <span class="badge badge-demo">Demo Data</span>' : '') + '</h1>' +
           '<p class="analysis-meta">' + m.units + ' units sold \u00B7 ' + fmtMoney(p.sellingPrice) + ' selling price</p>' +
         '</div>' +
         '<div class="an-head-actions">' +
@@ -966,21 +992,62 @@
   }
 
   function loadSamplesFlow() {
+    var hasDemo = state.products.some(Store.isDemoProduct);
+    var hasOwn = state.products.some(function (p) { return !Store.isDemoProduct(p); });
     var proceed = Promise.resolve(true);
-    if (state.products.length) {
+
+    if (hasDemo) {
       proceed = confirmDialog({
-        title: 'Replace current products?',
-        message: 'This will replace your ' + state.products.length +
-                 ' product(s) with the 6 built-in sample products.',
-        confirmText: 'Replace with samples'
+        title: 'Reload demo data?',
+        message: 'This replaces the current demo products with a fresh set. Your own products stay untouched.',
+        confirmText: 'Reload demo'
+      });
+    } else if (hasOwn) {
+      proceed = confirmDialog({
+        title: 'Add demo data?',
+        message: 'This adds demo products alongside your current ones, so you can explore how ProfitLeak AI works. Remove them anytime with \u201CClear Demo Data\u201D \u2014 your own products are never touched.',
+        confirmText: 'Add demo data'
       });
     }
+
     proceed.then(function (ok) {
       if (!ok) return;
-      state.products = Store.samplesForPlan();
+      state.products = state.products
+        .filter(function (p) { return !Store.isDemoProduct(p); })
+        .concat(Store.samplesForPlan());
       persist();
       render();
-      toast('Sample products loaded \u2713');
+      toast('Demo data loaded \u2713 \u2014 explore freely, then clear it anytime.');
+    });
+  }
+
+  function clearDemoFlow() {
+    var demo = state.products.filter(Store.isDemoProduct);
+    if (!demo.length) {
+      toast('No demo data to clear.');
+      return;
+    }
+    confirmDialog({
+      title: 'Clear demo data?',
+      message: 'This removes the ' + demo.length + ' demo product' + (demo.length > 1 ? 's' : '') +
+               '. Your own products stay untouched.',
+      confirmText: 'Clear Demo Data',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      var snapshot = state.products.slice();
+      state.products = state.products.filter(function (p) { return !Store.isDemoProduct(p); });
+      persist();
+      render();
+      toast('Demo data cleared \u2713', {
+        actionLabel: 'Undo',
+        onAction: function () {
+          state.products = snapshot;
+          persist();
+          render();
+          toast('Restored \u2713');
+        }
+      });
     });
   }
 
@@ -1307,7 +1374,7 @@
           '<p class="upsell-text">Add at least one product and ProfitLeak AI will generate a professional profit report from your numbers.</p>' +
           '<div class="empty-actions">' +
             '<a class="btn btn-primary btn-lg" href="#/add">+ Add your first product</a>' +
-            '<button class="btn btn-ghost" type="button" data-action="load-samples">Load sample data</button>' +
+            '<button class="btn btn-ghost" type="button" data-action="load-samples">Try Demo Data</button>' +
           '</div>' +
         '</div>';
       return;
@@ -1397,6 +1464,19 @@
      GLOBAL EVENTS (delegation)
      ============================================================= */
   function onGlobalClick(e) {
+    /* plain-language metric help (works on touch + desktop) */
+    var helpEl = e.target.closest ? e.target.closest('[data-help]') : null;
+    if (helpEl) {
+      var box = helpEl.closest('.kpi') || helpEl.closest('.diag-tile');
+      var helpBoxEl = box ? box.querySelector('.help-box') : null;
+      if (helpBoxEl) {
+        var opening = helpBoxEl.hidden;
+        helpBoxEl.hidden = !opening;
+        helpEl.setAttribute('aria-expanded', String(opening));
+      }
+      return;
+    }
+
     var closeImp = e.target.closest ? e.target.closest('[data-close-import]') : null;
     if (closeImp) { closeImportPreview(); return; }
 
@@ -1408,6 +1488,7 @@
       else if (act === 'edit') { e.preventDefault(); location.hash = '#/edit/' + encodeURIComponent(id); }
       else if (act === 'view') { e.preventDefault(); location.hash = '#/product/' + encodeURIComponent(id); }
       else if (act === 'load-samples') { loadSamplesFlow(); }
+      else if (act === 'clear-demo') { clearDemoFlow(); }
       else if (act === 'clear-all') { clearAllFlow(); }
       else if (act === 'export-csv') { exportCsv(); }
       else if (act === 'import-csv') { $('#csv-file').click(); }
@@ -1454,6 +1535,51 @@
   }
 
   /* =============================================================
+     FIRST-TIME WELCOME
+     ============================================================= */
+  function maybeShowWelcome() {
+    if (Store.isOnboarded() || state.products.length) {
+      if (!Store.isOnboarded()) Store.markOnboarded(); // returning user with data: skip
+      return;
+    }
+
+    var overlay = $('#welcome-overlay');
+    overlay.hidden = false;
+    document.body.classList.add('modal-open');
+
+    function close() {
+      overlay.hidden = true;
+      document.body.classList.remove('modal-open');
+      Store.markOnboarded();
+    }
+
+    $('#welcome-start').addEventListener('click', function () {
+      close();
+      if (parseRoute().page === 'landing') location.hash = '#/dashboard';
+      toast('Start by adding a product \u2014 or press \u201CTry Demo Data\u201D to explore first.');
+    });
+
+    $('#welcome-demo').addEventListener('click', function () {
+      close();
+      state.products = Store.samplesForPlan();
+      persist();
+      location.hash = '#/dashboard';
+      render();
+      toast('Demo data loaded \u2713 \u2014 explore freely, then clear it anytime.');
+    });
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', onKey);
+      }
+    });
+  }
+
+  /* =============================================================
      INIT
      ============================================================= */
   function init() {
@@ -1487,6 +1613,7 @@
     window.addEventListener('hashchange', render);
 
     render();
+    maybeShowWelcome();
   }
 
   if (document.readyState === 'loading') {

@@ -58,16 +58,19 @@ test('pro plan loads all 6 sample products', () => {
 test('full 6-product library stays intact for engine tests', () =>
   assert.equal(SAMPLE_PRODUCTS.length, 6));
 
-/* ---------- first-visit seeding respects the plan ---------- */
-test('Store.load() seeds 3 products for a fresh free user', () => {
+/* ---------- first visit: empty start, welcome + demo via UI ---------- */
+test('fresh user starts with an empty dashboard (no auto-seed)', () => {
   Plan.setPlan('free');
-  const fresh = Store.load();
-  assert.equal(fresh.length, 3);
+  assert.equal(Store.load().length, 0);
 });
-test('Store.load() seeds 6 products for a fresh pro user', () => {
-  Plan.setPlan('pro');
-  const fresh = Store.load();
-  assert.equal(fresh.length, 6);
+test('onboarding flag: unset at first, then persistable', () => {
+  assert.equal(Store.isOnboarded(), false);
+  Store.markOnboarded();
+  assert.equal(Store.isOnboarded(), true);
+});
+test('demo products are identified by id (never user products)', () => {
+  assert.ok(Store.isDemoProduct(SAMPLE_PRODUCTS[0]));
+  assert.ok(!Store.isDemoProduct({ id: 'p-xyz', name: 'Real product' }));
 });
 
 Plan.setPlan('free'); // leave the world in a clean state

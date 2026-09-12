@@ -29,6 +29,7 @@ No signup. No backend. Your data is stored locally in your browser.
 | 🔎 **Status filters** | All / Losing money / Low profit / Profitable, with live counts |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |
+| 👋 **First-time onboarding** | Welcome screen with 3 simple steps, one-click **Try Demo Data** (clearly labeled), safe **Clear Demo Data**, plain-language metric help and a friendly empty state |
 | 📄 **Profit Report** | One-click professional report: business summary, top 5 performers, biggest losses, profit leaks by category, smart recommendations — printable / save as PDF |
 | 📤 **CSV import with preview** | Upload a CSV → preview each product's true profit & status, see clear per-row validation errors, then press “Import Products” — plus a downloadable template and CSV export |
 | 💳 **FREE + PRO plans** | Free tier (3 products, basic diagnosis) + Pro tier (unlimited products, simulator, cost ranking, profit goals) with a pricing page — no payments connected yet |
@@ -54,7 +55,24 @@ and no payment provider are connected yet — by design.
 - **Upgrade to Pro** buttons open a "Pro is coming soon" dialog which also offers
   **free preview access**, so every feature stays usable until the paid launch.
 - Users who exceed the free limit keep their data — adding is simply gated.
-- New free users start with 3 sample products (one 🟢, one 🟡, one 🔴); Pro loads all 6.
+- New users get the welcome tour and start clean; **Try Demo Data** loads 3 products on Free (one 🟢, one 🟡, one 🔴) or all 6 on Pro, clearly labeled and removable in one click.
+
+## 👋 Onboarding (first-run experience)
+
+A brand-new user is greeted with a welcome screen — “Welcome to ProfitLeak AI · Find out
+where your products are making money — and where they're losing it” — plus three simple
+steps (**Add your products → Analyze your true profit → Discover what you should change**)
+and two buttons: **Get Started** and **Try Demo Data**.
+
+- **Try Demo Data** loads realistic sample products instantly (3 on Free, all 6 on Pro)
+- Demo products carry a visible **Demo Data** badge in the table and on the analysis page
+- **Clear Demo Data** removes only the demo products — your own products are never touched
+  (with confirmation + Undo)
+- The dashboard's key metrics have **? help buttons** with plain-language explanations
+  (revenue, costs, true profit, losing products, low profit, biggest leak) — they work on
+  touch and desktop
+- An empty dashboard shows: “No products yet. Add your first product or try the demo.”
+- The welcome appears only once (flag in localStorage); returning users go straight to their data
 
 ## 🚀 How to run it
 
@@ -166,7 +184,7 @@ profitleak-ai/
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + report + full app click-through tests (256 total)
+npm test               # engine + CSV + plan + report + full app click-through tests (273 total)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
 npm run test:plan      # FREE/PRO plan tests (zero dependencies)

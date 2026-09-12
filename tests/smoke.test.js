@@ -59,11 +59,47 @@ async function main() {
   test('landing nav links to Pricing', () =>
     assert.ok(d.querySelector('.landing-nav a[href="#/pricing"]')));
 
-  /* ---- dashboard as a free user ---- */
-  d.querySelector('.hero-cta a[href="#/dashboard"]').click();
+  /* ---- first-time welcome ---- */
+  test('hero CTA still links to the dashboard', () =>
+    assert.ok(d.querySelector('.hero-cta a[href="#/dashboard"]')));
+  test('first visit shows the welcome screen', () => {
+    assert.ok(!d.querySelector('#welcome-overlay').hidden);
+    const t3 = d.querySelector('#welcome-overlay').textContent;
+    assert.ok(t3.includes('Welcome to ProfitLeak AI'));
+    assert.ok(t3.includes('making money') && t3.includes('losing it'));
+    assert.ok(t3.includes('Add your products'));
+    assert.ok(t3.includes('Analyze your true profit'));
+    assert.ok(t3.includes('Discover what you should change'));
+  });
+  test('welcome offers Get Started and Try Demo Data', () => {
+    assert.ok(d.querySelector('#welcome-start'));
+    assert.ok(d.querySelector('#welcome-demo'));
+  });
+  d.querySelector('#welcome-start').click();
   await tick();
-  test('"Analyze My Products" opens the dashboard', () =>
-    assert.ok(!d.querySelector('#page-dashboard').hidden));
+  test('Get Started dismisses the welcome and opens the dashboard', () => {
+    assert.ok(d.querySelector('#welcome-overlay').hidden);
+    assert.ok(!d.querySelector('#page-dashboard').hidden);
+  });
+  test('empty dashboard: "No products yet." + demo hint', () => {
+    const t3 = d.querySelector('#table-wrap').textContent;
+    assert.ok(t3.includes('No products yet.'));
+    assert.ok(t3.includes('Add your first product or try the demo.'));
+  });
+  test('no auto-seeded products \u2014 a new user starts clean', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 0));
+
+  /* ---- demo data ---- */
+  d.querySelector('#table-wrap [data-action="load-samples"]').click();
+  await tick(30);
+  test('Try Demo Data loads 3 demo products (free plan)', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+  test('every demo product is clearly labeled "Demo Data"', () =>
+    assert.equal(d.querySelectorAll('#table-wrap .badge-demo').length, 3));
+  test('"Clear Demo Data" appears once demo products exist', () =>
+    assert.ok(!d.getElementById('btn-clear-demo').hidden));
+
+  /* ---- dashboard as a free user (with demo loaded) ---- */
   test('free plan banner shows 3 of 3 products used', () => {
     const b = d.querySelector('#plan-banner');
     assert.ok(!b.hidden);
@@ -72,8 +108,22 @@ async function main() {
   test('topbar shows an Upgrade to Pro button', () =>
     assert.ok(d.querySelector('#plan-nav .btn-gold')));
   test('6 KPI cards render', () => assert.equal(d.querySelectorAll('#kpi-grid .kpi').length, 6));
-  test('free seed: 3 sample products in the table', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+  test('KPI help is collapsed by default', () =>
+    assert.ok(d.querySelector('#kpi-grid [data-help="profit"]').closest('.kpi').querySelector('.help-box').hidden));
+  d.querySelector('#kpi-grid [data-help="revenue"]').click();
+  await tick(30);
+  test('KPI help explains Total Revenue in plain language', () => {
+    const box = d.querySelector('#kpi-grid .kpi .help-box:not([hidden])');
+    assert.ok(box && box.textContent.includes('before any costs'));
+  });
+  d.querySelector('#kpi-grid [data-help="losing"]').click();
+  await tick(30);
+  test('KPI help explains Losing Products', () => {
+    const box = d.querySelector('#kpi-grid [data-help="losing"]').closest('.kpi').querySelector('.help-box');
+    assert.ok(box && !box.hidden && box.textContent.includes('lose money on every sale'));
+  });
+  test('row action is labeled "View Analysis"', () =>
+    assert.ok(d.querySelector('#table-wrap [data-action="view"]').textContent.includes('View Analysis')));
   test('one product of each status (\uD83D\uDD34 \uD83D\uDFE1 \uD83D\uDFE2)', () => {
     assert.equal(d.querySelectorAll('#table-wrap .badge-red').length, 1);
     assert.equal(d.querySelectorAll('#table-wrap .badge-amber').length, 1);
@@ -408,20 +458,25 @@ async function main() {
   await tick(30);
   d.getElementById('modal-confirm').click();
   await tick();
-  test('load samples (pro) resets the dashboard to all 6 products', () =>
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+  test('Try Demo Data (pro) reloads demo alongside real products (9 rows)', () =>
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 9));
 
-  /* ---- profit report (pro, 6 products) ---- */
+  /* ---- profit report (pro, 9 products: 3 real + 6 demo) ---- */
   w.location.hash = '#/report';
   await tick();
-  test('report (6 products): totals and leak ranking scale up', () => {
+  test('report (9 products): counts and leak ranking scale up', () => {
     const tiles = Array.from(d.querySelectorAll('#report-body .rep-tile'));
     const val = label => tiles.find(x => x.textContent.includes(label)).querySelector('.rep-tile-value').textContent;
-    assert.equal(val('Total products'), '6');
-    assert.ok(val('Total revenue').includes('$55,574.90'));
+    assert.equal(val('Total products'), '9');
     assert.ok(val('Losing products').includes('2'));
     const leak = d.querySelector('#report-body .rep-sec-leaks tbody tr');
-    assert.ok(leak.textContent.includes('Purchase') && leak.textContent.includes('$18,595.00'));
+    assert.ok(leak.textContent.includes('Purchase'));
+  });
+  test('report lists real and demo products (top performers + losses)', () => {
+    const t3 = d.querySelector('#report-body').textContent;
+    assert.ok(t3.includes('Imported Poster'));   // real product, 4th best
+    assert.ok(t3.includes('Wireless Earbuds Pro')); // demo product, best
+    assert.ok(t3.includes('Clear Phone Case'));     // worst (losses table)
   });
   w.location.hash = '#/dashboard';
   await tick();
@@ -517,11 +572,27 @@ async function main() {
   });
   w.location.hash = '#/dashboard';
   await tick();
-  test('free banner explains 6 products are over the limit (data safe)', () => {
+  test('free banner explains 9 products are over the limit (data safe)', () => {
     const b = d.querySelector('#plan-banner');
     assert.ok(!b.hidden && b.textContent.includes('over the free limit'));
-    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6); // nothing deleted
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 9); // nothing deleted
   });
+
+  /* ---- Clear Demo Data: removes ONLY demo products ---- */
+  d.querySelector('#btn-clear-demo').click();
+  await tick(30);
+  test('Clear Demo Data asks for confirmation', () =>
+    assert.ok(d.querySelector('#modal-overlay').textContent.includes('demo product')));
+  d.getElementById('modal-confirm').click();
+  await tick(30);
+  test('only the 6 demo products are removed \u2014 3 real products stay', () => {
+    assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3);
+    assert.ok(d.querySelector('#table-wrap').textContent.includes('Imported Lamp'));
+  });
+  test('no "Demo Data" badges remain', () =>
+    assert.equal(d.querySelectorAll('#table-wrap .badge-demo').length, 0));
+  test('"Clear Demo Data" hides again when no demo remains', () =>
+    assert.ok(d.getElementById('btn-clear-demo').hidden));
 
   /* ---- health ---- */
   test('no unexpected page errors', () => assert.deepEqual(pageErrors, []));

@@ -11,7 +11,8 @@
   'use strict';
 
   var STORAGE_KEY = 'profitleak.products.v1';
-  var SEED_KEY = 'profitleak.seeded.v1';
+  var ONBOARD_KEY = 'profitleak.onboarded.v1';
+  var memoryOnboarded = false;
 
   /* ---------- Sample products ----------
      Deliberately cover every status and every type of "leak":
@@ -326,30 +327,41 @@
     /** True when products persist in localStorage; false in preview/memory mode. */
     isPersistent: function () { return persistent; },
 
-    /** Load products; seeds sample data on very first visit. */
+    /** Load products. First visit starts empty — the welcome screen
+        and the "Try Demo Data" button handle onboarding. */
     load: function () {
       if (!persistent) {
-        return memory ? memory.slice() : samplesForPlan();
+        return memory ? memory.slice() : [];
       }
       try {
         var raw = localStorage.getItem(STORAGE_KEY);
         if (raw !== null) {
           var arr = JSON.parse(raw);
-          if (!Array.isArray(arr)) return samplesForPlan();
+          if (!Array.isArray(arr)) return [];
           return arr.map(sanitizeProduct).filter(Boolean);
         }
-        // No saved products yet: seed samples on the very first visit only.
-        // (3 products on the FREE plan, all 6 on PRO)
-        if (!localStorage.getItem(SEED_KEY)) {
-          var seeded = samplesForPlan();
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-          localStorage.setItem(SEED_KEY, '1');
-          return seeded;
-        }
-        return []; // user cleared their data on a previous visit
+        return []; // first visit, or the user cleared their data
       } catch (e) {
-        return samplesForPlan();
+        return [];
       }
+    },
+
+    /** One-time onboarding flag (welcome screen). */
+    isOnboarded: function () {
+      if (!persistent) return memoryOnboarded;
+      try { return localStorage.getItem(ONBOARD_KEY) === '1'; }
+      catch (e) { return memoryOnboarded; }
+    },
+    markOnboarded: function () {
+      memoryOnboarded = true;
+      if (!persistent) return;
+      try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) { /* ignore */ }
+    },
+
+    /** Demo products ship with the app and can be removed in one click.
+        User-created products never match this test. */
+    isDemoProduct: function (p) {
+      return !!p && typeof p.id === 'string' && p.id.indexOf('sample-') === 0;
     },
 
     /** Persist the products array. */

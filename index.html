@@ -202,7 +202,8 @@
             <button class="btn btn-ghost btn-sm" type="button" data-action="export-csv">Export CSV</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="import-csv">Import CSV</button>
             <button class="btn btn-ghost btn-sm" type="button" data-action="csv-template" title="Download an example CSV with the correct column names">CSV template</button>
-            <button class="btn btn-ghost btn-sm" type="button" data-action="load-samples">Load sample data</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="load-samples">Try Demo Data</button>
+            <button class="btn btn-ghost btn-sm" type="button" data-action="clear-demo" id="btn-clear-demo" hidden>Clear Demo Data</button>
             <button class="btn btn-ghost btn-sm danger-text" type="button" data-action="clear-all">Clear all</button>
             <input type="file" id="csv-file" accept=".csv,text/csv" hidden>
           </div>
@@ -397,6 +398,33 @@
       <button class="btn btn-ghost" id="import-cancel" type="button">Cancel</button>
       <button class="btn btn-primary" id="import-confirm" type="button">Import Products</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay welcome-overlay" id="welcome-overlay" hidden>
+  <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <svg class="welcome-logo" viewBox="0 0 24 24" width="46" height="46" aria-hidden="true"><rect width="24" height="24" rx="7" fill="url(#plg)"/><path d="M12 5.2l4.7 4.7a6.65 6.65 0 1 1-9.4 0z" fill="#fff"/></svg>
+    <h2 id="welcome-title">Welcome to ProfitLeak AI</h2>
+    <p class="welcome-sub">Find out where your products are making money &mdash; and where they&rsquo;re losing it.</p>
+    <ol class="welcome-steps">
+      <li>
+        <span class="ws-num">1</span>
+        <div><strong>Add your products</strong><span>Enter your selling price and costs &mdash; it takes about 30 seconds.</span></div>
+      </li>
+      <li>
+        <span class="ws-num">2</span>
+        <div><strong>Analyze your true profit</strong><span>After advertising, shipping, fees, discounts and returns.</span></div>
+      </li>
+      <li>
+        <span class="ws-num">3</span>
+        <div><strong>Discover what you should change</strong><span>Clear recommendations based on your own numbers.</span></div>
+      </li>
+    </ol>
+    <div class="welcome-actions">
+      <button class="btn btn-primary btn-lg" id="welcome-start" type="button">Get Started</button>
+      <button class="btn btn-ghost btn-lg" id="welcome-demo" type="button">Try Demo Data</button>
+    </div>
+    <p class="welcome-note">Your data is stored only in your browser. No account needed.</p>
   </div>
 </div>
 
