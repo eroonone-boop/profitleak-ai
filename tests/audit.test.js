@@ -986,12 +986,29 @@ w.location.hash = '#/dashboard'; await tick(60);
    ============================================================= */
 console.log('\n\u2500\u2500 7. Security \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
-const SRC_FILES = ['js/calc.js', 'js/data.js', 'js/charts.js', 'js/report.js', 'js/app.js', 'index.html']
+const SRC_FILES = ['js/calc.js', 'js/data.js', 'js/charts.js', 'js/report.js', 'js/app.js', 'js/license.js', 'index.html']
   .map(f => ({ name: f, text: fs.readFileSync(path.join(ROOT, f), 'utf-8') }));
 SRC_FILES.push({ name: 'ProfitLeak-AI.html (build)', text: STANDALONE });
 
-test('SECURITY: no network calls anywhere (fetch/XHR/WebSocket/sendBeacon)', () => {
-  SRC_FILES.forEach(f => assert.ok(!/\b(fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon)/.test(f.text), f.name));
+test('SECURITY: no network calls except the single license-verify endpoint (v1.8)', () => {
+  /* The ONLY network call in the whole app is the Gumroad license
+     verification (api.gumroad.com), triggered solely when a user
+     pastes a paid license key. Everything else stays offline. */
+  SRC_FILES.forEach(f => {
+    const rest = f.text.split("fetch('https://api.gumroad.com/v2/licenses/verify'").join('LICENSE-VERIFY');
+    ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
+      assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
+  });
+});
+test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.org', () => {
+  SRC_FILES.forEach(f => {
+    const rest = f.text
+      .split('https://api.gumroad.com').join('')
+      .split('http://www.w3.org').join('')
+      .split('https://www.w3.org').join('');
+    assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');
+    assert.equal(rest.indexOf('http://'), -1, f.name + ' contains a foreign http URL');
+  });
 });
 test('SECURITY: no eval / new Function / dynamic code execution', () => {
   SRC_FILES.forEach(f => assert.ok(!/\beval\s*\(|new\s+Function\s*\(/.test(f.text), f.name));

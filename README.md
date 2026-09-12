@@ -172,6 +172,7 @@ profitleak-ai/
 │   ├── calc.js             ← calculation, loss detection & recommendation engine
 │   ├── charts.js           ← lightweight SVG/CSS charts (no libraries)
 │   └── app.js              ← UI: routing, dashboard, form, validation, toasts
+│   └── license.js          ← Pro license activation via Gumroad (v1.8)
 ├── tests/
 │   ├── calc.test.js        ← engine tests (run: node tests/calc.test.js)
 │   ├── csv.test.js         ← CSV export/import tests
@@ -179,6 +180,7 @@ profitleak-ai/
 │   ├── report.test.js      ← Profit Report tests
 │   ├── audit.test.js      ← full quality & reliability audit (187 checks)
 │   ├── e2e.test.js        ← deployment end-to-end journey (43 checks)
+│   ├── license.test.js     ← Pro license activation tests (27 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -247,7 +249,8 @@ Fixes made during the audit (no features changed):
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # everything below — 503 checks total, all green
+npm test               # everything below — 504 checks total, all green
+npm run test:license  # Pro license activation (mocked Gumroad API)
 npm run test:audit    # quality & reliability audit (187 checks
 - **Round 5 / final pre-deployment pass (v1.7.5)** — rapid double-submit of the
   product form (stuck Enter / double-firing input) created duplicate products;
@@ -277,6 +280,40 @@ After editing anything in `css/` or `js/`:
 ```bash
 python3 scripts/build_standalone.py
 ```
+
+## 💳 Selling Pro with license keys (v1.8)
+
+Pro can now be **sold**. How it works:
+
+1. The buyer pays on **Gumroad** and instantly receives a unique license key by email.
+2. In ProfitLeak AI they open **Pricing → “Already bought? Activate your Pro license”**,
+   paste the key, and press **Activate**.
+3. The app verifies the key once against `api.gumroad.com/v2/licenses/verify`
+   (checks that the purchase is real and not refunded/disputed), stores the
+   license in the browser, and unlocks Pro — everything else keeps working
+   fully offline. Refunded or disputed keys are rejected automatically.
+4. **No accounts, no server, no database** — the license lives in the buyer's
+   browser (localStorage), like the rest of the app.
+
+The connection lives in **`js/license.js`** (two constants at the top):
+
+```js
+var GUMROAD_PRODUCT_ID  = ''; // fill after creating the Gumroad product
+var GUMROAD_PRODUCT_URL = ''; // e.g. yourname.gumroad.com/l/profitleak-pro
+```
+
+While they are empty the app behaves exactly as before (free preview flow) —
+nothing on the live site ever looks broken. The moment a Gumroad product exists:
+
+1. On Gumroad: product → Content → ♦ menu → **License key** → enable
+   *generate a unique license key per sale*.
+2. Copy the **product_id** (shown when you expand the license-key module) and the
+   product URL into `js/license.js`.
+3. Rebuild: `python3 scripts/build_standalone.py` → deploy → the license box
+   appears on the Pricing page and the Buy button links to your store.
+
+Pricing shown in the app: **$19 one-time** (launch offer) — the Free plan
+(3 products) stays the funnel.
 
 ## ☁️ Deploy (free static hosting)
 

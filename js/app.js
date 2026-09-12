@@ -12,6 +12,7 @@
   var CSV = window.PL_CSV;
   var Plan = window.PL_PLAN;
   var Report = window.PL_REPORT;
+  var License = window.PL_LICENSE; // paid license layer (v1.8)
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -407,7 +408,7 @@
           '<a class="btn btn-primary btn-lg" href="#/pricing">Upgrade to Pro</a>' +
           '<a class="btn btn-ghost" href="#/dashboard">Back to dashboard</a>' +
         '</div>' +
-        '<p class="upsell-note">Pro launches at $9/month \u2014 until then you can activate free preview access.</p>';
+        '<p class="upsell-note">Pro is $19 one-time at launch \u2014 until the store opens, you can activate free preview access.</p>';
       return;
     }
     layout.hidden = false;
@@ -1249,7 +1250,7 @@
     var host = $('#plan-nav');
     if (!host) return;
     host.innerHTML = Plan.isPro()
-      ? '<span class="pro-badge" title="Pro preview active \u2014 manage in Pricing">PRO</span>'
+      ? '<span class="pro-badge" title="' + (Plan.hasLicense() ? 'Pro licensed \u2014 manage in Pricing' : 'Pro preview active \u2014 manage in Pricing') + '">PRO</span>'
       : '<a class="btn btn-gold btn-sm" href="#/pricing">\u26A1 Upgrade to Pro</a>';
   }
 
@@ -1318,11 +1319,34 @@
       ? '<a class="btn btn-ghost btn-lg" href="#/dashboard">Back to dashboard</a>'
       : '<span class="badge badge-green">Your current plan</span>';
 
-    var proBtn = pro
-      ? '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
-        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>'
-      : '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $9/month</button>' +
-        '<p class="price-note">No payment needed today \u00B7 Pro launches soon</p>';
+    var licensed = Plan.hasLicense();
+    var proBtn;
+    if (pro && licensed) {
+      proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro licensed \u2014 thank you!</span>' +
+        '<button type="button" class="link-btn" data-action="license-remove">Remove license</button></div>';
+    } else if (pro) {
+      proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
+        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>';
+    } else if (License && License.isConfigured()) {
+      proBtn = '<a class="btn btn-light btn-lg" href="' + esc(License.buyUrl()) + '" target="_blank" rel="noopener">Buy Pro \u2014 $19 one-time</a>' +
+        '<p class="price-note">Secure checkout via Gumroad \u00B7 license key delivered instantly by email</p>';
+    } else {
+      proBtn = '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $19 one-time</button>' +
+        '<p class="price-note">One-time payment \u00B7 store opens at launch</p>';
+    }
+
+    /* activate-a-license box (only once the store is connected) */
+    var licenseBox = '';
+    if (License && License.isConfigured() && !pro) {
+      licenseBox = '<div class="license-box">' +
+          '<div class="license-title">Already bought? Activate your Pro license</div>' +
+          '<div class="license-row">' +
+            '<input id="license-input" type="text" placeholder="Paste the license key from your purchase email" aria-label="License key" autocomplete="off">' +
+            '<button class="btn btn-primary btn-sm" type="button" data-action="license-activate" id="license-activate-btn">Activate</button>' +
+          '</div>' +
+          '<div class="license-error" id="license-error" hidden></div>' +
+        '</div>';
+    }
 
     $('#pricing-body').innerHTML =
       '<div class="pricing-grid">' +
@@ -1336,19 +1360,42 @@
         '<div class="price-card price-card-pro">' +
           '<div class="price-ribbon">Most popular</div>' +
           '<div class="price-name">PRO</div>' +
-          '<div class="price-value">$9<small>/month</small></div>' +
+          '<div class="price-value">$19<small> one-time</small></div>' +
           '<p class="price-tag">For serious online sellers</p>' +
           featList(proFeats) +
           '<div class="price-actions">' + proBtn + '</div>' +
+          licenseBox +
         '</div>' +
       '</div>' +
-      '<p class="pricing-trust">No payment required today \u00B7 Cancel anytime \u00B7 Your data never leaves your browser</p>';
+      '<p class="pricing-trust">One-time payment \u00B7 Refunds handled via Gumroad \u00B7 Your data never leaves your browser</p>';
+  }
+
+  /* ---------- paid license activation (v1.8) ---------- */
+  function activateLicenseFlow() {
+    var input = $('#license-input');
+    var btn = $('#license-activate-btn');
+    var err = $('#license-error');
+    if (!input || !btn) return;
+    if (err) { err.hidden = true; }
+    btn.disabled = true;
+    btn.textContent = 'Verifying\u2026';
+    License.activate(input.value).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = 'Activate';
+      if (r.ok) {
+        toast('Pro activated \u2014 welcome aboard, and thank you! \uD83C\uDF89');
+        render();
+      } else {
+        if (err) { err.textContent = r.reason; err.hidden = false; }
+        input.focus();
+      }
+    });
   }
 
   function showProComingSoon() {
     confirmDialog({
       title: 'Pro is coming soon \uD83D\uDE80',
-      message: 'Pro launches at $9/month with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until launch day, you can activate free preview access and use every Pro feature at no cost.',
+      message: 'Pro is $19 one-time (launch offer for the first customers) with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until the store opens, you can activate free preview access and use every Pro feature at no cost.',
       confirmText: 'Activate free preview',
       cancelText: 'Not now'
     }).then(function (ok) {
@@ -1496,6 +1543,12 @@
       else if (act === 'import-csv') { $('#csv-file').click(); }
       else if (act === 'csv-template') { downloadCsvTemplate(); }
       else if (act === 'upgrade') { showProComingSoon(); }
+      else if (act === 'license-activate') { activateLicenseFlow(); }
+      else if (act === 'license-remove') {
+        License.deactivate();
+        render();
+        toast('License removed \u2014 you are back on the Free plan. Your products are safe.');
+      }
       else if (act === 'deactivate-preview') {
         Plan.setPlan('free');
         render();
@@ -1586,6 +1639,15 @@
      ============================================================= */
   function init() {
     state.products = Store.load();
+
+    /* paid license (v1.8): restores Pro instantly for licensed users */
+    if (License) {
+      Plan.setLicenseActive(License.isActive());
+      License.onChange(function (active) {
+        Plan.setLicenseActive(active);
+        render();
+      });
+    }
 
     $('#product-form').addEventListener('submit', onFormSubmit);
     $('#product-form').addEventListener('input', function (e) {

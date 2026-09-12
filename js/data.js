@@ -92,6 +92,11 @@
 
   var memoryPlan = 'free';
 
+  /* Pro can also come from a paid license (see js/license.js).
+     The license layer reports its state here; the free-preview
+     flag above stays completely independent. */
+  var licenseActive = false;
+
   function readPlan() {
     if (!persistent) return memoryPlan;
     try {
@@ -108,7 +113,9 @@
   }
 
   var Plan = {
-    isPro: function () { return readPlan() === 'pro'; },
+    isPro: function () { return readPlan() === 'pro' || licenseActive; },
+    setLicenseActive: function (v) { licenseActive = !!v; },
+    hasLicense: function () { return licenseActive; },
     setPlan: function (v) { writePlan(v); },
     freeLimit: function () { return FREE_PRODUCT_LIMIT; },
     /** How many more products can be added on the current plan. */

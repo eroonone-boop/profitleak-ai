@@ -250,9 +250,9 @@ async function main() {
 
   w.location.hash = '#/pricing';
   await tick();
-  test('pricing page renders FREE $0 and PRO $9/month', () => {
+  test('pricing page renders FREE $0 and PRO $19 one-time', () => {
     const t = d.querySelector('#pricing-body').textContent;
-    assert.ok(t.includes('$0') && t.includes('$9') && t.includes('month'));
+    assert.ok(t.includes('$0') && t.includes('$19') && t.includes('one-time'));
   });
   test('pricing cards show the right tags and ribbon', () => {
     const t = d.querySelector('#pricing-body').textContent;
@@ -265,7 +265,7 @@ async function main() {
      'Amazon', 'eBay', 'Shopify'].forEach(f => assert.ok(t.includes(f), f));
   });
   test('trust line: no payment required today', () =>
-    assert.ok(d.querySelector('.pricing-trust').textContent.includes('No payment required today')));
+    assert.ok(d.querySelector('.pricing-trust').textContent.includes('One-time payment')));
 
   d.querySelector('[data-action="upgrade"]').click();
   await tick(30);

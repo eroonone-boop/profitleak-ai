@@ -1773,6 +1773,22 @@ th.num, td.num { text-align: right; }
 }
 
 /* ---- print: a clean document, nothing but the report ---- */
+/* ------------------------- license activation ------------------------- */
+.license-box { margin-top: 18px; padding: 14px; border: 1.5px dashed var(--border);
+  border-radius: 10px; background: #f8fafc; text-align: left; }
+.license-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.license-row { display: flex; gap: 8px; }
+.license-row input { flex: 1; min-width: 0; padding: 9px 11px; font-size: 16px;
+  font-family: inherit; color: var(--text); background: var(--surface);
+  border: 1.5px solid var(--border); border-radius: 8px; }
+.license-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px #e0e7ff; }
+.license-row button { white-space: nowrap; }
+.license-error { font-size: 12.5px; color: var(--red); margin-top: 8px; }
+.license-active { display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; font-size: 13px; color: var(--text); }
+.license-active .ok { font-weight: 700; color: #047857; }
+@media (max-width: 520px) { .license-row { flex-direction: column; } }
+
 @media print {
   @page { size: A4; margin: 12mm; }
 
@@ -2695,6 +2711,11 @@ th.num, td.num { text-align: right; }
 
   var memoryPlan = 'free';
 
+  /* Pro can also come from a paid license (see js/license.js).
+     The license layer reports its state here; the free-preview
+     flag above stays completely independent. */
+  var licenseActive = false;
+
   function readPlan() {
     if (!persistent) return memoryPlan;
     try {
@@ -2711,7 +2732,9 @@ th.num, td.num { text-align: right; }
   }
 
   var Plan = {
-    isPro: function () { return readPlan() === 'pro'; },
+    isPro: function () { return readPlan() === 'pro' || licenseActive; },
+    setLicenseActive: function (v) { licenseActive = !!v; },
+    hasLicense: function () { return licenseActive; },
     setPlan: function (v) { writePlan(v); },
     freeLimit: function () { return FREE_PRODUCT_LIMIT; },
     /** How many more products can be added on the current plan. */
@@ -3902,6 +3925,188 @@ th.num, td.num { text-align: right; }
 </script>
 <script>
 /* =============================================================
+   ProfitLeak AI — Pro license activation (v1.8)
+   Buyers receive a Gumroad license key right after purchase and
+   paste it on the Pricing page. The key is verified ONCE against
+   Gumroad's license API; the result is stored in the browser.
+   After activation the app keeps working fully offline, exactly
+   as before — no account, no server of ours, data stays local.
+   ============================================================= */
+(function (global) {
+  'use strict';
+
+  var LICENSE_STORAGE_KEY = 'profitleak.license.v1';
+
+  /* ==== STORE CONNECTION ===========================================
+     These two constants connect the app to your Gumroad product.
+     They are filled in when the store goes live. Until then the
+     license box stays hidden and the app keeps its free-preview
+     upgrade flow, so nothing on the live site ever looks broken.
+     ================================================================= */
+  var GUMROAD_PRODUCT_ID = '';  // e.g. '32-nPAicqbLj8B_WswVlMw=='
+  var GUMROAD_PRODUCT_URL = ''; // e.g. yourname.gumroad.com/l/profitleak-pro
+
+  /* ---------- storage (localStorage with memory fallback) ---------- */
+  function storageAvailable() {
+    try {
+      if (typeof localStorage === 'undefined') return false;
+      var k = '__profitleak_test__';
+      localStorage.setItem(k, k);
+      localStorage.removeItem(k);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  var persistent = storageAvailable();
+  var memoryLicense = null;
+
+  function readLicense() {
+    if (!persistent) return memoryLicense;
+    try {
+      var raw = localStorage.getItem(LICENSE_STORAGE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj.key !== 'string' || !obj.key) return null;
+      return { key: obj.key, email: typeof obj.email === 'string' ? obj.email : '',
+               activatedAt: typeof obj.activatedAt === 'string' ? obj.activatedAt : '' };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeLicense(license) {
+    memoryLicense = license;
+    if (!persistent) return;
+    try {
+      if (license) localStorage.setItem(LICENSE_STORAGE_KEY, JSON.stringify(license));
+      else localStorage.removeItem(LICENSE_STORAGE_KEY);
+    } catch (e) { /* storage blocked — keep going in memory */ }
+  }
+
+  var state = { license: readLicense() };
+
+  /* ---------- key normalization ----------
+     Gumroad keys look like 85DB562A-C11D4B06-A2335A6B-8C079166.
+     Accept pastes with spaces, lowercase and stray characters. */
+  function normalizeKey(k) {
+    return String(k || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[\s\u00A0]+/g, '')
+      .replace(/[^A-Z0-9-]/g, '');
+  }
+
+  /* ---------- Gumroad license verify API ----------
+     gumroad.com/api — one call at activation time only. */
+  function verifyWithGumroad(key) {
+    var body = new URLSearchParams();
+    body.set('product_id', GUMROAD_PRODUCT_ID);
+    body.set('license_key', key);
+    body.set('increment_uses_count', 'false'); // activation may be repeated on new devices
+
+    return fetch('https://api.gumroad.com/v2/licenses/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    }).then(function (res) {
+      /* Gumroad answers 404 with {success:false} for unknown keys —
+         that is a normal rejection, not a network problem. */
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (data && data.success !== true) {
+          return { valid: false, reason: 'This license key was not recognized. Double-check the code from your purchase email.' };
+        }
+        if (!data) {
+          return { valid: false, reason: 'Gumroad could not be reached (HTTP ' + res.status + '). Please try again in a moment.' };
+        }
+        var p = data.purchase || {};
+        if (p.refunded) {
+          return { valid: false, reason: 'This purchase was refunded \u2014 the license is no longer valid.' };
+        }
+        if (p.disputed) {
+          return { valid: false, reason: 'This purchase is under payment dispute \u2014 the license cannot be activated.' };
+        }
+        return { valid: true, email: typeof p.email === 'string' ? p.email : '' };
+      });
+    });
+  }
+
+  function activate(rawKey) {
+    if (!GUMROAD_PRODUCT_ID) {
+      return Promise.resolve({
+        ok: false,
+        reason: 'License activation is not connected yet \u2014 it becomes available the moment the store goes live.'
+      });
+    }
+    var key = normalizeKey(rawKey);
+    if (key.length < 8) {
+      return Promise.resolve({
+        ok: false,
+        reason: 'That code looks too short \u2014 copy the complete license key from your purchase email.'
+      });
+    }
+    return verifyWithGumroad(key).then(function (r) {
+      if (!r.valid) return { ok: false, reason: r.reason };
+      state.license = { key: key, email: r.email, activatedAt: new Date().toISOString() };
+      writeLicense(state.license);
+      notify();
+      return { ok: true, license: getLicense() };
+    }).catch(function () {
+      return { ok: false, reason: 'Activation needs an internet connection. Check your connection and try again.' };
+    });
+  }
+
+  function deactivate() {
+    state.license = null;
+    writeLicense(null);
+    notify();
+  }
+
+  function getLicense() {
+    return state.license ? {
+      key: state.license.key,
+      email: state.license.email,
+      activatedAt: state.license.activatedAt
+    } : null;
+  }
+  function isActive() { return !!state.license; }
+  function isConfigured() { return !!GUMROAD_PRODUCT_ID; }
+  function buyUrl() { return GUMROAD_PRODUCT_URL; }
+
+  /* ---------- notify the plan layer (data.js) ---------- */
+  var listeners = [];
+  function onChange(cb) { if (typeof cb === 'function') listeners.push(cb); }
+  function notify() {
+    listeners.forEach(function (cb) {
+      try { cb(!!state.license); } catch (e) { /* never break activation */ }
+    });
+  }
+
+  var api = {
+    activate: activate,
+    deactivate: deactivate,
+    getLicense: getLicense,
+    isActive: isActive,
+    isConfigured: isConfigured,
+    buyUrl: buyUrl,
+    onChange: onChange,
+    /* exposed for the automated tests */
+    _normalizeKey: normalizeKey,
+    _setStoreConnection: function (id, url) {
+      GUMROAD_PRODUCT_ID = String(id || '');
+      GUMROAD_PRODUCT_URL = String(url || '');
+    },
+    _reset: function () { deactivate(); }
+  };
+
+  global.PL_LICENSE = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* =============================================================
    ProfitLeak AI — application controller
    Hash-based SPA:  #/  landing ·  #/dashboard  ·  #/add  ·
    #/edit/:id  ·  #/product/:id
@@ -3915,6 +4120,7 @@ th.num, td.num { text-align: right; }
   var CSV = window.PL_CSV;
   var Plan = window.PL_PLAN;
   var Report = window.PL_REPORT;
+  var License = window.PL_LICENSE; // paid license layer (v1.8)
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -4310,7 +4516,7 @@ th.num, td.num { text-align: right; }
           '<a class="btn btn-primary btn-lg" href="#/pricing">Upgrade to Pro</a>' +
           '<a class="btn btn-ghost" href="#/dashboard">Back to dashboard</a>' +
         '</div>' +
-        '<p class="upsell-note">Pro launches at $9/month \u2014 until then you can activate free preview access.</p>';
+        '<p class="upsell-note">Pro is $19 one-time at launch \u2014 until the store opens, you can activate free preview access.</p>';
       return;
     }
     layout.hidden = false;
@@ -5152,7 +5358,7 @@ th.num, td.num { text-align: right; }
     var host = $('#plan-nav');
     if (!host) return;
     host.innerHTML = Plan.isPro()
-      ? '<span class="pro-badge" title="Pro preview active \u2014 manage in Pricing">PRO</span>'
+      ? '<span class="pro-badge" title="' + (Plan.hasLicense() ? 'Pro licensed \u2014 manage in Pricing' : 'Pro preview active \u2014 manage in Pricing') + '">PRO</span>'
       : '<a class="btn btn-gold btn-sm" href="#/pricing">\u26A1 Upgrade to Pro</a>';
   }
 
@@ -5221,11 +5427,34 @@ th.num, td.num { text-align: right; }
       ? '<a class="btn btn-ghost btn-lg" href="#/dashboard">Back to dashboard</a>'
       : '<span class="badge badge-green">Your current plan</span>';
 
-    var proBtn = pro
-      ? '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
-        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>'
-      : '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $9/month</button>' +
-        '<p class="price-note">No payment needed today \u00B7 Pro launches soon</p>';
+    var licensed = Plan.hasLicense();
+    var proBtn;
+    if (pro && licensed) {
+      proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro licensed \u2014 thank you!</span>' +
+        '<button type="button" class="link-btn" data-action="license-remove">Remove license</button></div>';
+    } else if (pro) {
+      proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
+        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>';
+    } else if (License && License.isConfigured()) {
+      proBtn = '<a class="btn btn-light btn-lg" href="' + esc(License.buyUrl()) + '" target="_blank" rel="noopener">Buy Pro \u2014 $19 one-time</a>' +
+        '<p class="price-note">Secure checkout via Gumroad \u00B7 license key delivered instantly by email</p>';
+    } else {
+      proBtn = '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $19 one-time</button>' +
+        '<p class="price-note">One-time payment \u00B7 store opens at launch</p>';
+    }
+
+    /* activate-a-license box (only once the store is connected) */
+    var licenseBox = '';
+    if (License && License.isConfigured() && !pro) {
+      licenseBox = '<div class="license-box">' +
+          '<div class="license-title">Already bought? Activate your Pro license</div>' +
+          '<div class="license-row">' +
+            '<input id="license-input" type="text" placeholder="Paste the license key from your purchase email" aria-label="License key" autocomplete="off">' +
+            '<button class="btn btn-primary btn-sm" type="button" data-action="license-activate" id="license-activate-btn">Activate</button>' +
+          '</div>' +
+          '<div class="license-error" id="license-error" hidden></div>' +
+        '</div>';
+    }
 
     $('#pricing-body').innerHTML =
       '<div class="pricing-grid">' +
@@ -5239,19 +5468,42 @@ th.num, td.num { text-align: right; }
         '<div class="price-card price-card-pro">' +
           '<div class="price-ribbon">Most popular</div>' +
           '<div class="price-name">PRO</div>' +
-          '<div class="price-value">$9<small>/month</small></div>' +
+          '<div class="price-value">$19<small> one-time</small></div>' +
           '<p class="price-tag">For serious online sellers</p>' +
           featList(proFeats) +
           '<div class="price-actions">' + proBtn + '</div>' +
+          licenseBox +
         '</div>' +
       '</div>' +
-      '<p class="pricing-trust">No payment required today \u00B7 Cancel anytime \u00B7 Your data never leaves your browser</p>';
+      '<p class="pricing-trust">One-time payment \u00B7 Refunds handled via Gumroad \u00B7 Your data never leaves your browser</p>';
+  }
+
+  /* ---------- paid license activation (v1.8) ---------- */
+  function activateLicenseFlow() {
+    var input = $('#license-input');
+    var btn = $('#license-activate-btn');
+    var err = $('#license-error');
+    if (!input || !btn) return;
+    if (err) { err.hidden = true; }
+    btn.disabled = true;
+    btn.textContent = 'Verifying\u2026';
+    License.activate(input.value).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = 'Activate';
+      if (r.ok) {
+        toast('Pro activated \u2014 welcome aboard, and thank you! \uD83C\uDF89');
+        render();
+      } else {
+        if (err) { err.textContent = r.reason; err.hidden = false; }
+        input.focus();
+      }
+    });
   }
 
   function showProComingSoon() {
     confirmDialog({
       title: 'Pro is coming soon \uD83D\uDE80',
-      message: 'Pro launches at $9/month with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until launch day, you can activate free preview access and use every Pro feature at no cost.',
+      message: 'Pro is $19 one-time (launch offer for the first customers) with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until the store opens, you can activate free preview access and use every Pro feature at no cost.',
       confirmText: 'Activate free preview',
       cancelText: 'Not now'
     }).then(function (ok) {
@@ -5399,6 +5651,12 @@ th.num, td.num { text-align: right; }
       else if (act === 'import-csv') { $('#csv-file').click(); }
       else if (act === 'csv-template') { downloadCsvTemplate(); }
       else if (act === 'upgrade') { showProComingSoon(); }
+      else if (act === 'license-activate') { activateLicenseFlow(); }
+      else if (act === 'license-remove') {
+        License.deactivate();
+        render();
+        toast('License removed \u2014 you are back on the Free plan. Your products are safe.');
+      }
       else if (act === 'deactivate-preview') {
         Plan.setPlan('free');
         render();
@@ -5489,6 +5747,15 @@ th.num, td.num { text-align: right; }
      ============================================================= */
   function init() {
     state.products = Store.load();
+
+    /* paid license (v1.8): restores Pro instantly for licensed users */
+    if (License) {
+      Plan.setLicenseActive(License.isActive());
+      License.onChange(function (active) {
+        Plan.setLicenseActive(active);
+        render();
+      });
+    }
 
     $('#product-form').addEventListener('submit', onFormSubmit);
     $('#product-form').addEventListener('input', function (e) {
