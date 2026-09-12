@@ -29,6 +29,7 @@ No signup. No backend. Your data is stored locally in your browser.
 | 🔎 **Status filters** | All / Losing money / Low profit / Profitable, with live counts |
 | 🔍 **Product analysis** | Full breakdown + "Where are you losing money?" + "What should you change?" |
 | 📈 **Charts** | Profit-by-product bars and a "where your money goes" cost donut |
+| 📄 **Profit Report** | One-click professional report: business summary, top 5 performers, biggest losses, profit leaks by category, smart recommendations — printable / save as PDF |
 | 📤 **CSV import with preview** | Upload a CSV → preview each product's true profit & status, see clear per-row validation errors, then press “Import Products” — plus a downloadable template and CSV export |
 | 💳 **FREE + PRO plans** | Free tier (3 products, basic diagnosis) + Pro tier (unlimited products, simulator, cost ranking, profit goals) with a pricing page — no payments connected yet |
 | 📱 **Responsive** | Works on desktop, tablet and mobile |
@@ -65,6 +66,21 @@ You have three easy options — **no coding needed**:
 
 > First launch comes with 6 sample products so you can explore immediately.
 > Use **Load sample data** / **Clear all** on the dashboard to reset anytime.
+
+## 📨 Profit Report
+
+The **Generate Report** button (dashboard) builds a professional report from your
+actual product data and shows the generation date:
+
+1. **Business summary** — products, revenue, costs, true profit, overall margin, profitable & losing counts
+2. **Top performers** — the 5 most profitable products
+3. **Biggest losses** — up to 5 products with the largest losses + each one's biggest cost
+4. **Profit leaks** — all six cost categories aggregated across products, biggest first with % of total costs
+5. **Smart recommendations** — generated only from your numbers (e.g. “Your largest cost category is purchase cost at $18,595.00 — 38% of all your costs”)
+
+**Download Report** opens your browser's print dialog — choose **Save as PDF**.
+The print layout is a clean A4 document (app chrome hidden, no broken rows).
+No paid APIs, no authentication: everything is computed locally.
 
 ## 📄 CSV import format
 
@@ -138,6 +154,7 @@ profitleak-ai/
 │   ├── calc.test.js        ← engine tests (run: node tests/calc.test.js)
 │   ├── csv.test.js         ← CSV export/import tests
 │   ├── plan.test.js        ← FREE/PRO plan tests
+│   ├── report.test.js      ← Profit Report tests
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -149,10 +166,11 @@ profitleak-ai/
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + full app click-through tests (212 total)
+npm test               # engine + CSV + plan + report + full app click-through tests (256 total)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)
 npm run test:plan      # FREE/PRO plan tests (zero dependencies)
+npm run test:report    # Profit Report tests (zero dependencies)
 ```
 
 The engine tests verify every formula and recommendation against hand-calculated

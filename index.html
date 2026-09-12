@@ -164,6 +164,10 @@
           <p class="page-sub">Your true profitability — after advertising, shipping, fees, discounts and returns.</p>
         </div>
         <div class="page-actions">
+          <a class="btn btn-ghost" href="#/report">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg>
+            Generate Report
+          </a>
           <a class="btn btn-primary" href="#/add">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             Add Product
@@ -352,6 +356,21 @@
       <div id="pricing-body"></div>
     </section>
 
+    <!-- ============ PROFIT REPORT ============ -->
+    <section id="page-report" class="page" hidden>
+      <div class="report-toolbar">
+        <a class="btn btn-ghost" href="#/dashboard">&#8592; Back to dashboard</a>
+        <div class="report-toolbar-right">
+          <span class="report-hint">Opens the print dialog &mdash; choose &ldquo;Save as PDF&rdquo; to download</span>
+          <button class="btn btn-primary" id="report-print" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6"/><path d="M7 15h10v6H7z"/></svg>
+            Download Report
+          </button>
+        </div>
+      </div>
+      <div id="report-body"></div>
+    </section>
+
   </main>
 </div>
 
@@ -386,6 +405,7 @@
 <script src="js/data.js"></script>
 <script src="js/calc.js"></script>
 <script src="js/charts.js"></script>
+<script src="js/report.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

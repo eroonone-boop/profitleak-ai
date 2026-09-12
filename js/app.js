@@ -11,6 +11,7 @@
   var Charts = window.PL_CHARTS;
   var CSV = window.PL_CSV;
   var Plan = window.PL_PLAN;
+  var Report = window.PL_REPORT;
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -73,6 +74,7 @@
     var parts = h.split('/').filter(Boolean);
     if (parts[0] === 'dashboard') return { page: 'dashboard' };
     if (parts[0] === 'pricing') return { page: 'pricing' };
+    if (parts[0] === 'report') return { page: 'report' };
     if (parts[0] === 'add') return { page: 'form', mode: 'add' };
     if (parts[0] === 'edit') return parts[1] ? { page: 'form', mode: 'edit', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
     if (parts[0] === 'product') return parts[1] ? { page: 'analysis', id: decodeURIComponent(parts[1]) } : { page: 'dashboard' };
@@ -100,6 +102,9 @@
     } else if (route.page === 'pricing') {
       $('#page-pricing').hidden = false;
       renderPricing();
+    } else if (route.page === 'report') {
+      $('#page-report').hidden = false;
+      renderReport();
     } else if (route.page === 'form') {
       $('#page-form').hidden = false;
       renderForm(route);
@@ -1286,6 +1291,33 @@
   }
 
   /* =============================================================
+     PROFIT REPORT
+     ============================================================= */
+  function renderReport() {
+    var host = $('#report-body');
+    var printBtn = $('#report-print');
+    var r = Report.buildReport(state.products);
+
+    if (!r) {
+      printBtn.disabled = true;
+      host.innerHTML =
+        '<div class="card upsell-card">' +
+          '<div class="upsell-icon" aria-hidden="true">\uD83D\uDCC4</div>' +
+          '<h2>Nothing to report yet</h2>' +
+          '<p class="upsell-text">Add at least one product and ProfitLeak AI will generate a professional profit report from your numbers.</p>' +
+          '<div class="empty-actions">' +
+            '<a class="btn btn-primary btn-lg" href="#/add">+ Add your first product</a>' +
+            '<button class="btn btn-ghost" type="button" data-action="load-samples">Load sample data</button>' +
+          '</div>' +
+        '</div>';
+      return;
+    }
+
+    printBtn.disabled = false;
+    host.innerHTML = Report.renderHtml(r);
+  }
+
+  /* =============================================================
      TOASTS + CONFIRM DIALOG
      ============================================================= */
   function toast(message, opts) {
@@ -1439,6 +1471,10 @@
     });
 
     $('#csv-file').addEventListener('change', onCsvFileChosen);
+
+    $('#report-print').addEventListener('click', function () {
+      try { window.print(); } catch (e) { /* non-browser environments */ }
+    });
 
     $('#import-cancel').addEventListener('click', closeImportPreview);
     $('#import-confirm').addEventListener('click', onImportConfirm);

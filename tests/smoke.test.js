@@ -147,6 +147,55 @@ async function main() {
   test('closing the preview leaves the 3 products untouched', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
 
+  /* ---- profit report (free user, 3 products) ---- */
+  d.querySelector('#page-dashboard .page-actions a[href="#/report"]').click();
+  await tick();
+  test('"Generate Report" opens the report page', () =>
+    assert.ok(!d.querySelector('#page-report').hidden));
+  test('report shows the generation date', () => {
+    const t3 = d.querySelector('#report-body .rep-date').textContent;
+    assert.ok(t3.includes('Generated') && /, 20\d\d \u00B7/.test(t3));
+  });
+  test('business summary lists every key figure', () => {
+    const t3 = d.querySelector('#report-body').textContent;
+    ['Business summary', 'Total products', 'Total revenue', 'Total costs', 'True profit',
+     'Overall margin', 'Profitable products', 'Losing products'].forEach(k =>
+      assert.ok(t3.includes(k), k));
+  });
+  test('summary values correct for the 3 free products', () => {
+    const tiles = Array.from(d.querySelectorAll('#report-body .rep-tile'));
+    const val = label => tiles.find(x => x.textContent.includes(label)).querySelector('.rep-tile-value').textContent;
+    assert.equal(val('Total products'), '3');
+    assert.ok(val('Total revenue').includes('$32,889.20'));
+    assert.ok(val('True profit').includes('$3,624.20'));
+    assert.ok(val('Losing products').includes('1'));
+  });
+  test('top performers: Wireless Earbuds Pro first ($3,356.80)', () => {
+    const first = d.querySelector('#report-body .rep-sec-top tbody tr');
+    assert.ok(first.textContent.includes('Wireless Earbuds Pro') && first.textContent.includes('$3,356.80'));
+  });
+  test('biggest losses: Clear Phone Case at \u2212$380.00 with its biggest cost', () => {
+    const first = d.querySelector('#report-body .rep-sec-losses tbody tr');
+    assert.ok(first.textContent.includes('Clear Phone Case'));
+    assert.ok(first.textContent.includes('\u2212$380.00') && first.textContent.includes('Advertising'));
+  });
+  test('profit leaks: Purchase ranks #1 at $11,320.00', () => {
+    const first = d.querySelector('#report-body .rep-sec-leaks tbody tr');
+    assert.ok(first.textContent.includes('Purchase') && first.textContent.includes('$11,320.00'));
+  });
+  test('smart recommendations generated from the data', () => {
+    const recs = d.querySelectorAll('#report-body .rep-sec-recs li');
+    assert.ok(recs.length >= 3);
+    assert.ok(d.querySelector('#report-body .rep-sec-recs').textContent.includes('largest cost category'));
+  });
+  let printed = false;
+  w.print = function () { printed = true; };
+  d.getElementById('report-print').click();
+  await tick(30);
+  test('"Download Report" opens the print dialog (Save as PDF)', () => assert.ok(printed));
+  d.querySelector('.report-toolbar a[href="#/dashboard"]').click();
+  await tick();
+
   /* ================= STAGE 2 — PRICING & UPGRADE ================= */
 
   w.location.hash = '#/pricing';
@@ -361,6 +410,21 @@ async function main() {
   await tick();
   test('load samples (pro) resets the dashboard to all 6 products', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 6));
+
+  /* ---- profit report (pro, 6 products) ---- */
+  w.location.hash = '#/report';
+  await tick();
+  test('report (6 products): totals and leak ranking scale up', () => {
+    const tiles = Array.from(d.querySelectorAll('#report-body .rep-tile'));
+    const val = label => tiles.find(x => x.textContent.includes(label)).querySelector('.rep-tile-value').textContent;
+    assert.equal(val('Total products'), '6');
+    assert.ok(val('Total revenue').includes('$55,574.90'));
+    assert.ok(val('Losing products').includes('2'));
+    const leak = d.querySelector('#report-body .rep-sec-leaks tbody tr');
+    assert.ok(leak.textContent.includes('Purchase') && leak.textContent.includes('$18,595.00'));
+  });
+  w.location.hash = '#/dashboard';
+  await tick();
 
   /* ---- full Pro analysis on Clear Phone Case ---- */
   d.querySelector('tr.clickable').click();
