@@ -173,7 +173,7 @@ profitleak-ai/
 │   ├── csv.test.js         ← CSV export/import tests
 │   ├── plan.test.js        ← FREE/PRO plan tests
 │   ├── report.test.js      ← Profit Report tests
-│   ├── audit.test.js      ← full quality & reliability audit (143 checks)
+│   ├── audit.test.js      ← full quality & reliability audit (155 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -181,9 +181,9 @@ profitleak-ai/
 └── README.md
 ```
 
-## 🔍 Quality & Reliability Audit (v1.7.1)
+## 🔍 Quality & Reliability Audit (v1.7.1 + v1.7.2 round 2)
 
-A full independent audit pass over the entire application — **143 automated checks**
+Two full independent audit passes over the entire application — **155 automated checks**
 (`npm run test:audit`), all green, on top of the existing 273 tests:
 
 - **Financial formulas** — every metric verified against the spec
@@ -208,17 +208,26 @@ A full independent audit pass over the entire application — **143 automated ch
   XSS injection attempts (product names) render as inert text everywhere
 - **Performance** — 1,000 products calculated in ~1 ms; report of 500 products
   in ~3 ms; 120-product import + full re-render stays smooth
+- **Round 2 (v1.7.2)** — chart rendering (profit bars, cost donut, unit-economics
+  bar, cost ranking) verified number-for-number against the engine; extreme values
+  (billions, sub-cent decimals) and floating-point robustness; margin tooltip
 
 Fixes made during the audit (no features changed):
 - Router no longer crashes on malformed hashes such as `#/product/%`
   (unsafe `decodeURIComponent` replaced with a guarded decoder)
 - Removed an accidentally duplicated code block in the what-if renderer
+- Sub-cent floating-point dust (e.g. price $0.30 vs costs $0.10 + $0.20) no longer
+  shows a false “LOSING MONEY” badge next to “$0.00” — status, diagnosis,
+  recommendations and the unit-economics bar now ignore losses under half a cent,
+  while a genuine 1-cent loss is still LOSING
+- The True-profit tooltip now also explains the profit margin shown underneath it
+  (closing the last v1.7 onboarding gap)
 
 ## 🧪 Tests
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + report + smoke + full QA audit (416 total)
+npm test               # engine + CSV + plan + report + smoke + full QA audit (428 total)
 npm run test:audit    # quality & reliability audit only (143 checks)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)

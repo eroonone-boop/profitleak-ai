@@ -14,6 +14,7 @@
         analysis = diagnosis = report = simulator = engine)
      8. Security (XSS injection attempts, no network/eval/secrets)
      9. Performance benchmarks
+    10. Charts consistency + extreme values & floating-point dust (round 2)
    Requires dev dependency:  npm install   then   node tests/audit.test.js
    ============================================================= */
 'use strict';
@@ -298,6 +299,45 @@ test('diagnose().biggest always equals biggestCost() (fuzz)', () => {
     const big = CALC.biggestCost(p);
     assert.equal(d.biggest ? d.biggest.key : null, big ? big.key : null, p.name);
   });
+});
+
+test('EXTREME: very large numbers stay finite and formattable', () => {
+  const m = CALC.computeMetrics(P('big', 1e9, 5e8, 1e8, 1e8, 5e7, 1e7, 1e7, 1e9));
+  assert.ok(allFinite(m), JSON.stringify(m));
+  [CALC.money(m.revenue), CALC.money(m.totalCost), CALC.money(m.trueProfit),
+   CALC.pct1(m.profitMargin)].forEach(s =>
+    assert.ok(!/NaN|Infinity|undefined/.test(s), s));
+});
+test('EXTREME: tiny decimals stay finite and formattable', () => {
+  const m = CALC.computeMetrics(P('tiny', 0.01, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 1));
+  assert.ok(allFinite(m), JSON.stringify(m));
+  [CALC.money(m.revenue), CALC.money(m.totalCost), CALC.money(m.trueProfit),
+   CALC.pct1(m.profitMargin)].forEach(s =>
+    assert.ok(!/NaN|Infinity|undefined/.test(s), s));
+});
+test('ROUNDING: sub-cent values format as $0.00 (never \u2212$0.00)', () => {
+  assert.equal(CALC.money(-0.004), '$0.00');
+  assert.equal(CALC.money(0.004), '$0.00');
+  assert.equal(CALC.money(-0.01), '\u2212$0.01');
+});
+test('FLOAT DUST: price exactly equals costs \u2192 break-even, not a false \u201CLOSING\u201D', () => {
+  const p = P('dust', 0.30, 0.10, 0.20, 0, 0, 0, 0, 1);
+  const m = CALC.computeMetrics(p);
+  assert.ok(m.trueProfit < 0 && m.trueProfit > -0.001,
+    'precondition: negative float dust (' + m.trueProfit + ')');
+  assert.notEqual(CALC.getStatus(m), 'LOSING', 'status must not be LOSING');
+  const issues = CALC.detectIssues(p, m);
+  assert.ok(!issues.some(i => i.type === 'LOSING'), 'no LOSING issue');
+  const recs = CALC.buildRecommendations(p, m, issues);
+  assert.ok(!recs.some(r => /lose/i.test(r)), 'no \u201Cyou lose\u201D text: ' + recs[0]);
+  assert.equal(CALC.money(m.trueProfit), '$0.00');
+});
+test('FLOAT DUST: a genuine 1-cent loss is still LOSING', () => {
+  const p = P('cent', 10, 5.01, 2.5, 1.25, 0.75, 0.25, 0.25, 1);
+  const m = CALC.computeMetrics(p);
+  assertApprox(m.trueProfit, -0.01, 'precondition');
+  assert.equal(CALC.getStatus(m), 'LOSING');
+  assert.ok(CALC.detectIssues(p, m).some(i => i.type === 'LOSING'));
 });
 
 /* =============================================================
@@ -710,6 +750,12 @@ test('PRO: 4th product now allowed', () => assert.equal(rows().length, 4));
     assert.equal(kpis[4].querySelector('.kpi-value').textContent.trim(), String(s.losing));
     assert.equal(kpis[5].querySelector('.kpi-value').textContent.trim(), String(s.low));
   });
+  d.querySelector('#kpi-grid [data-help="profit"]').click(); await tick(30);
+  test('HELP: True-profit tooltip also explains the profit margin (v1.7 gap)', () => {
+    const box = d.querySelector('#kpi-grid [data-help="profit"]').closest('.kpi').querySelector('.help-box');
+    assert.ok(box && !box.hidden, 'box open');
+    assert.ok(box.textContent.toLowerCase().includes('margin'), 'mentions margin');
+  });
   test('TABLE: every row\u2019s numbers = engine numbers for that product', () => {
     const prods = storageProducts();
     Array.from(rows()).forEach(function (row) {
@@ -1095,6 +1141,82 @@ console.log('\n\u2500\u2500 9. Persistence across sessions \u2500\u2500\u2500\u2
   });
   s2.dom.window.close();
 }
+
+/* =============================================================
+   SECTION 10 — CHARTS CONSISTENCY (audit round 2)
+   ============================================================= */
+console.log('\n\u2500\u2500 10. Charts consistency \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+
+const Charts = require('../js/charts.js');
+const noJunk = h => !/NaN|Infinity|undefined/.test(h);
+
+test('CHARTS: profit bars \u2014 labels, values and widths = engine', () => {
+  const prods3 = [P('ChartA', 50, 20, 3, 2, 2, 1, 0.5, 100),
+                  P('ChartB', 12.99, 3, 5.5, 2.5, 1.95, 0.5, 0.3, 500),
+                  P('ChartC', 20, 10, 4, 3, 2, 1, 0, 50)];
+  const rows3 = prods3.map(p => ({ id: p.id, name: p.name, m: CALC.computeMetrics(p) }));
+  const html = Charts.profitBars(rows3);
+  assert.ok(noJunk(html));
+  prods3.forEach(p => assert.ok(html.includes(p.name), p.name));
+  assert.ok(html.includes(CALC.money(2150)), 'A profit value');
+  assert.ok(html.includes(CALC.money(-380)), 'B loss value');
+  const widths = (html.match(/width:([\d.]+)%/g) || []).map(s => parseFloat(s.slice(6)));
+  assertApprox(widths[0], 100, 'best bar fills the track');
+  assertApprox(widths[1], Math.abs(-380) / 2150 * 100, 'loss bar proportional', 1e-3); // width is rounded to 2 decimals
+  assertApprox(widths[2], 1.5, 'zero-profit bar gets min width', 1e-4);
+});
+test('CHARTS: cost donut \u2014 legend totals & percentages = engine aggregation', () => {
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const cats = CALC.costBreakdown(P('ChartA', 50, 20, 3, 2, 2, 1, 0.5, 100))
+    .map(c => ({ key: c.key, label: c.label, total: c.total }));
+  const html = Charts.costDonut(cats);
+  assert.ok(noJunk(html));
+  const total = cats.reduce((s, c) => s + c.total, 0);
+  assert.ok(html.includes(usd.format(CALC.round2(total))), 'center total');
+  const first = cats.slice().sort((a, b) => b.total - a.total)[0];
+  const second = cats.slice().sort((a, b) => b.total - a.total)[1];
+  assert.ok(html.indexOf(first.label) < html.indexOf(second.label), 'categories sorted biggest first');
+  cats.forEach(c => assert.ok(html.includes(usd.format(CALC.round2(c.total))), c.label + ' total'));
+  cats.forEach(c => assert.ok(html.includes(Math.round(c.total / total * 100) + '%'), c.label + ' pct'));
+});
+test('CHARTS: unit bar (profitable) \u2014 profit share = engine', () => {
+  const p = P('ChartA', 50, 20, 3, 2, 2, 1, 0.5, 100);
+  const m = CALC.computeMetrics(p);
+  const html = Charts.unitBar(p, m);
+  assert.ok(noJunk(html));
+  assert.ok(html.includes('True profit'));
+  assert.ok(html.includes(CALC.money(m.profitPerUnit) + '/sale'), 'legend per-sale value');
+  assert.ok(html.includes(Math.round(m.profitPerUnit / p.sellingPrice * 100) + '%'), 'profit share');
+});
+test('CHARTS: unit bar (losing) \u2014 loss gap & coverage = engine', () => {
+  const p = P('ChartB', 12.99, 3, 5.5, 2.5, 1.95, 0.5, 0.3, 500);
+  const m = CALC.computeMetrics(p);
+  const html = Charts.unitBar(p, m);
+  assert.ok(noJunk(html));
+  assert.ok(html.includes('Loss (not covered by your price)'));
+  assert.ok(html.includes(CALC.money(m.profitPerUnit) + ' per sale'), 'loss per sale');
+  assert.ok(html.includes('covers only'));
+  assert.ok(html.includes(Math.round(p.sellingPrice / m.totalCostPerUnit * 100) + '%'), 'coverage %');
+});
+test('CHARTS: cost ranking \u2014 order, biggest tag and over-limit flags = engine', () => {
+  const p = P('ChartB', 12.99, 3, 5.5, 2.5, 1.95, 0.5, 0.3, 500);
+  const html = Charts.costRanking(p);
+  assert.ok(noJunk(html));
+  assert.ok(html.indexOf('Advertising') < html.indexOf('Purchase cost'), 'ads ranked #1');
+  assert.ok(html.includes('biggest'));
+  CALC.costBreakdown(p).filter(c => c.perUnit > 0)
+    .sort((a, b) => b.perUnit - a.perUnit)
+    .forEach(c => assert.ok(html.includes(CALC.money(c.perUnit)), c.label));
+  assert.equal((html.match(/\u26A0/g) || []).length, 3, 'ad+shipping+fees flagged over ceiling');
+});
+test('CHARTS: empty states render instead of broken charts', () => {
+  assert.ok(Charts.profitBars([]).includes('Add a product'));
+  assert.ok(Charts.costDonut([{ key: 'ad', label: 'Advertising', total: 0 }])
+    .includes('No costs recorded yet'));
+  const bare = P('bare', 10, 0, 0, 0, 0, 0, 0, 5);
+  assert.ok(Charts.costRanking(bare).includes('No costs recorded'));
+  assert.ok(Charts.unitBar(bare, CALC.computeMetrics(bare)).includes('No costs to show yet'));
+});
 
 /* ---------------- summary ---------------- */
 console.log('\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');

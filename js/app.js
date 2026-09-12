@@ -176,7 +176,7 @@
     products: 'Everything you have added to your dashboard. Click any product to see its full analysis.',
     revenue: 'All the money your customers paid you, before any costs. It is selling price \u00D7 units sold.',
     costs: 'Everything you spend to make the sale: purchase, advertising, shipping, platform fees, discounts and returns.',
-    profit: 'What really remains after subtracting ALL costs from your revenue. Green means you are earning, red means you are losing.',
+    profit: 'What really remains after subtracting ALL costs from your revenue. Green means you are earning, red means you are losing. The percentage shown underneath is your profit margin \u2014 the share of every sales dollar you actually keep.',
     losing: 'Products that lose money on every sale. They quietly eat your profit \u2014 fix or pause these first.',
     low: 'Products earning less than a 15% margin. Profitable, but fragile \u2014 a small cost increase could turn them into losses.',
     leak: 'The single cost that takes the biggest share of your money on this product.'

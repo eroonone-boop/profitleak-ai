@@ -103,7 +103,7 @@
   function unitBar(p, m) {
     var parts = CALC.costBreakdown(p).filter(function (c) { return c.perUnit > 0; });
     var profit = m.profitPerUnit;
-    var losing = profit < 0;
+    var losing = profit < -(CALC.LOSS_EPSILON || 0.005); // ignore sub-cent float dust
     var total = losing ? m.totalCostPerUnit : p.sellingPrice;
 
     if (!(total > 0) || !parts.length) {

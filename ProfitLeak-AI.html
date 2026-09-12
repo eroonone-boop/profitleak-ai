@@ -3003,6 +3003,12 @@ th.num, td.num { text-align: right; }
     RETURNS_SHARE_PCT: 10       // return costs above this share → flagged
   };
 
+  /* A product only counts as LOSING when it truly loses at least half a
+     cent. This ignores floating-point dust (e.g. price $0.30 vs costs
+     $0.10 + $0.20 = a loss of 0.00000000000000005) that would otherwise
+     show a false "LOSING MONEY" badge next to "$0.00". */
+  var LOSS_EPSILON = 0.005;
+
   /* ---------- Formatting helpers (also used inside recommendations) ---------- */
   var usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -3061,7 +3067,7 @@ th.num, td.num { text-align: right; }
      2) STATUS — 🔴 losing · 🟡 low profit · 🟢 profitable
      ============================================================= */
   function getStatus(m) {
-    if (m.trueProfit < 0) return 'LOSING';
+    if (m.trueProfit < -LOSS_EPSILON) return 'LOSING';
     if (m.profitMargin < THRESHOLDS.LOW_PROFIT_MARGIN_PCT) return 'LOW';
     return 'PROFITABLE';
   }
@@ -3104,7 +3110,7 @@ th.num, td.num { text-align: right; }
     var price = p.sellingPrice;
     function share(v) { return price > 0 ? (v / price) * 100 : 0; }
 
-    if (m.trueProfit < 0) {
+    if (m.trueProfit < -LOSS_EPSILON) {
       issues.push({
         type: 'LOSING',
         severity: 'danger',
@@ -3135,7 +3141,7 @@ th.num, td.num { text-align: right; }
       if (s > c.th) {
         issues.push({
           type: c.type,
-          severity: m.trueProfit < 0 ? 'danger' : 'warn',
+          severity: m.trueProfit < -LOSS_EPSILON ? 'danger' : 'warn',
           title: c.title,
           detail: c.label + ' cost you ' + money(c.perUnit) + ' per sale — ' + pct(s) +
                   ' of your selling price (healthy ceiling: ' + c.th + '%).'
@@ -3159,7 +3165,7 @@ th.num, td.num { text-align: right; }
 
     var big = biggestCost(p);
 
-    if (m.trueProfit < 0) {
+    if (m.trueProfit < -LOSS_EPSILON) {
       var gap = -m.profitPerUnit; // positive number
       recs.push('You lose ' + money(gap) + ' on every sale. At ' + m.units +
                 ' units sold, that is ' + money(m.trueProfit) + ' in total losses.');
@@ -3301,7 +3307,7 @@ th.num, td.num { text-align: right; }
               ' in profit across your ' + m.units + ' units sold.',
       secondary: null
     };
-    if (m.trueProfit < 0) {
+    if (m.trueProfit < -LOSS_EPSILON) {
       action.secondary = 'Also: increasing your selling price to ' + money(m.totalCostPerUnit) +
         ' would make every sale break even \u2014 or combine both fixes.';
     }
@@ -3381,6 +3387,7 @@ th.num, td.num { text-align: right; }
   /* ---------- Exports ---------- */
   var api = {
     THRESHOLDS: THRESHOLDS,
+    LOSS_EPSILON: LOSS_EPSILON,
     round2: round2,
     money: money,
     pct: pct,
@@ -3510,7 +3517,7 @@ th.num, td.num { text-align: right; }
   function unitBar(p, m) {
     var parts = CALC.costBreakdown(p).filter(function (c) { return c.perUnit > 0; });
     var profit = m.profitPerUnit;
-    var losing = profit < 0;
+    var losing = profit < -(CALC.LOSS_EPSILON || 0.005); // ignore sub-cent float dust
     var total = losing ? m.totalCostPerUnit : p.sellingPrice;
 
     if (!(total > 0) || !parts.length) {
@@ -4057,7 +4064,7 @@ th.num, td.num { text-align: right; }
     products: 'Everything you have added to your dashboard. Click any product to see its full analysis.',
     revenue: 'All the money your customers paid you, before any costs. It is selling price \u00D7 units sold.',
     costs: 'Everything you spend to make the sale: purchase, advertising, shipping, platform fees, discounts and returns.',
-    profit: 'What really remains after subtracting ALL costs from your revenue. Green means you are earning, red means you are losing.',
+    profit: 'What really remains after subtracting ALL costs from your revenue. Green means you are earning, red means you are losing. The percentage shown underneath is your profit margin \u2014 the share of every sales dollar you actually keep.',
     losing: 'Products that lose money on every sale. They quietly eat your profit \u2014 fix or pause these first.',
     low: 'Products earning less than a 15% margin. Profitable, but fragile \u2014 a small cost increase could turn them into losses.',
     leak: 'The single cost that takes the biggest share of your money on this product.'
