@@ -15,6 +15,8 @@
      8. Security (XSS injection attempts, no network/eval/secrets)
      9. Performance benchmarks
     10. Charts consistency + extreme values & floating-point dust (round 2)
+    11. Interaction edges: deep links, keyboard + a11y, Escape keys,
+        edit validation, combined what-if, goal edge cases, over-limit demo (round 3)
    Requires dev dependency:  npm install   then   node tests/audit.test.js
    ============================================================= */
 'use strict';
@@ -98,12 +100,12 @@ async function bootIndexApp() {
 
 /* Boot the single-file build, optionally pre-seeding localStorage
    (script injected into <head> runs before the app scripts). */
-async function bootStandalone(seedScript) {
+async function bootStandalone(seedScript, hash) {
   let html = STANDALONE;
   if (seedScript) html = html.replace('<head>', '<head><script>' + seedScript + '</script>');
   const dom = new JSDOM(html, {
     runScripts: 'dangerously', pretendToBeVisual: true,
-    url: 'https://profitleak.example/', virtualConsole: makeConsole()
+    url: 'https://profitleak.example/' + (hash || ''), virtualConsole: makeConsole()
   });
   const w = dom.window, d = w.document;
   await tick(250);
@@ -1217,6 +1219,247 @@ test('CHARTS: empty states render instead of broken charts', () => {
   assert.ok(Charts.costRanking(bare).includes('No costs recorded'));
   assert.ok(Charts.unitBar(bare, CALC.computeMetrics(bare)).includes('No costs to show yet'));
 });
+
+/* =============================================================
+   SECTION 11 — INTERACTION EDGES (audit round 3)
+   ============================================================= */
+console.log('\n\u2500\u2500 11. Interaction edges (round 3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+
+/* --- unit level: header aliases, column order, BOM, embedded newlines --- */
+test('CSV ALIASES: Price / Qty / Ad Cost headers map correctly', () => {
+  const res = data.CSV.fromCsv('Name,Price,Purchase Cost,Ad Cost,Shipping Cost,Platform Fees,Discount per Sale,Return Cost per Sale,Qty\nAliasWidget,25,10,3,2,2.5,1,0.5,40');
+  assert.equal(res.errors.length, 0);
+  assert.equal(res.products.length, 1);
+  assert.equal(res.products[0].sellingPrice, 25);
+  assert.equal(res.products[0].adCostPerSale, 3);
+  assert.equal(res.products[0].unitsSold, 40);
+});
+test('CSV: column order does not matter (mapping is by header name)', () => {
+  const res = data.CSV.fromCsv('Units Sold,Selling Price,Name\n40,25,Reordered');
+  assert.equal(res.products.length, 1);
+  assert.equal(res.products[0].name, 'Reordered');
+  assert.equal(res.products[0].sellingPrice, 25);
+  assert.equal(res.products[0].unitsSold, 40);
+});
+test('CSV: unknown extra columns are ignored', () => {
+  const res = data.CSV.fromCsv('Name,Selling Price,Units Sold,SKU,Notes\nExtra,10,5,X1,hello');
+  assert.equal(res.products.length, 1);
+  assert.equal(res.products[0].name, 'Extra');
+});
+test('CSV: Excel BOM prefix on the header is tolerated', () => {
+  const res = data.CSV.fromCsv('\uFEFFName,Selling Price,Units Sold\nBom,10,5');
+  assert.equal(res.missingColumns, null);
+  assert.equal(res.products.length, 1);
+});
+test('CSV: quoted field with an embedded newline survives the parser', () => {
+  const res = data.CSV.fromCsv(H + '\n"Multi\nLine",10,1,1,1,1,1,1,5');
+  assert.equal(res.products.length, 1);
+  assert.equal(res.products[0].name, 'Multi\nLine');
+});
+
+/* --- end-to-end: one fresh journey through the interaction edges --- */
+{
+  const app3 = await bootStandalone(null, '#/dashboard'); // deep link
+  const w3 = app3.w, d3 = app3.d;
+  const submit3 = () => d3.getElementById('product-form')
+    .dispatchEvent(new w3.Event('submit', { bubbles: true, cancelable: true }));
+  const set3 = (id, v) => { d3.getElementById(id).value = v; };
+  const pressEsc = () => d3.dispatchEvent(new w3.KeyboardEvent('keydown', { key: 'Escape' }));
+  const storage3 = () => JSON.parse(w3.localStorage.getItem('profitleak.products.v1') || '[]');
+
+  test('DEEP LINK: booting straight into #/dashboard works (welcome overlays it)', () => {
+    assert.ok(!d3.querySelector('#page-dashboard').hidden);
+    assert.ok(!d3.querySelector('#welcome-overlay').hidden);
+  });
+  d3.querySelector('#welcome-start').click(); await tick(50);
+  test('DEEP LINK: Get Started stays on the dashboard', () => {
+    assert.ok(d3.querySelector('#welcome-overlay').hidden);
+    assert.ok(!d3.querySelector('#page-dashboard').hidden);
+  });
+
+  /* demo on an empty account loads immediately */
+  d3.querySelector('#table-wrap [data-action="load-samples"]').click(); await tick(60);
+  const firstRow = d3.querySelector('tr.clickable');
+  test('KEYBOARD/A11Y: rows are focusable buttons (tabindex + role)', () => {
+    assert.ok(firstRow);
+    assert.equal(firstRow.getAttribute('tabindex'), '0');
+    assert.equal(firstRow.getAttribute('role'), 'button');
+  });
+  firstRow.dispatchEvent(new w3.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await tick(60);
+  test('KEYBOARD: Enter on a row opens that product\u2019s analysis', () => {
+    assert.ok(!d3.querySelector('#page-analysis').hidden);
+    assert.ok(d3.querySelector('#analysis-head h1').textContent.length > 1);
+  });
+
+  /* help toggle a11y state */
+  {
+    const leakBtn = d3.querySelector('[data-help="leak"]');
+    leakBtn.click(); await tick(30);
+    test('A11Y: help opens with aria-expanded="true"', () => {
+      assert.equal(leakBtn.getAttribute('aria-expanded'), 'true');
+      const box = leakBtn.closest('.diag-tile').querySelector('.help-box');
+      assert.ok(box && !box.hidden);
+    });
+    leakBtn.click(); await tick(30);
+    test('A11Y: help closes with aria-expanded="false"', () => {
+      assert.equal(leakBtn.getAttribute('aria-expanded'), 'false');
+      assert.ok(leakBtn.closest('.diag-tile').querySelector('.help-box').hidden);
+    });
+  }
+
+  /* Escape closes the import overlay without importing */
+  w3.location.hash = '#/dashboard'; await tick(50);
+  {
+    const fi = d3.getElementById('csv-file');
+    const ff = new w3.File([H + '\nEsc Product,10,2,1,1,1,0,0,5'], 'esc.csv', { type: 'text/csv' });
+    Object.defineProperty(fi, 'files', { value: [ff], configurable: true });
+    fi.dispatchEvent(new w3.Event('change', { bubbles: true }));
+    await tick(80);
+    test('IMPORT: preview overlay opens for a valid file', () =>
+      assert.ok(!d3.querySelector('#import-overlay').hidden));
+    pressEsc(); await tick(30);
+    test('IMPORT: Escape closes the overlay — nothing imported', () => {
+      assert.ok(d3.querySelector('#import-overlay').hidden);
+      assert.equal(storage3().length, 3);
+    });
+  }
+
+  /* Escape cancels the delete confirmation */
+  d3.querySelector('[data-action="delete"]').click(); await tick(40);
+  test('DELETE: confirmation dialog opens', () =>
+    assert.ok(!d3.querySelector('#modal-overlay').hidden));
+  pressEsc(); await tick(40);
+  test('DELETE: Escape cancels — product untouched', () => {
+    assert.ok(d3.querySelector('#modal-overlay').hidden);
+    assert.equal(storage3().length, 3);
+    assert.equal(d3.querySelectorAll('#table-wrap tbody tr').length, 3);
+  });
+
+  /* editing a demo product + edit-form validation */
+  const demoId = storage3()[0].id;
+  const beforeEdit = storage3()[0];
+  w3.location.hash = '#/edit/' + encodeURIComponent(demoId); await tick(60);
+  set3('f-name', 'Demo Edited'); submit3(); await tick(60);
+  test('EDIT (demo product): rename saved, Demo Data badge kept', () => {
+    assert.equal(storage3().find(p => p.id === demoId).name, 'Demo Edited');
+    const row = d3.querySelector('tr[data-id="' + demoId + '"]');
+    assert.ok(row.textContent.includes('Demo Edited'));
+    assert.ok(row.querySelector('.badge-demo'));
+  });
+  w3.location.hash = '#/edit/' + encodeURIComponent(demoId); await tick(60);
+  set3('f-price', '-5'); submit3(); await tick(40);
+  test('EDIT VALIDATION: negative price blocked on edit too', () => {
+    assert.ok(d3.getElementById('f-price').closest('.field').classList.contains('has-error'));
+    assert.equal(storage3().find(p => p.id === demoId).sellingPrice, beforeEdit.sellingPrice);
+  });
+
+  /* Pro: combined what-if changes + edge inputs */
+  w3.location.hash = '#/pricing'; await tick(50);
+  d3.querySelector('[data-action="upgrade"]').click(); await tick(40);
+  d3.getElementById('modal-confirm').click(); await tick(50);
+  test('UPGRADE (round 3): Pro preview active', () =>
+    assert.ok(d3.querySelector('#plan-nav .pro-badge')));
+
+  w3.location.hash = '#/product/' + encodeURIComponent(demoId); await tick(60);
+  const p3 = storage3().find(p => p.id === demoId);
+  const priceNum = d3.querySelector('[data-wi-num="sellingPrice"]');
+  const adNum = d3.querySelector('[data-wi-num="adCostPerSale"]');
+  priceNum.value = '20'; priceNum.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  adNum.value = '0'; adNum.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  {
+    const simExp = CALC.simulate(p3, { sellingPrice: 20, adCostPerSale: 0 });
+    test('WHAT-IF: combined changes (price + ads together) = engine simulate', () => {
+      const txt = d3.querySelector('#wi-results').textContent;
+      assert.ok(txt.includes(money(simExp.metrics.trueProfit)), 'total ' + money(simExp.metrics.trueProfit));
+      assert.ok(txt.includes(money(simExp.diffTotal)), 'diff ' + money(simExp.diffTotal));
+    });
+  }
+  priceNum.value = '99999'; priceNum.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  {
+    const simBig = CALC.simulate(p3, { sellingPrice: 99999, adCostPerSale: 0 });
+    test('WHAT-IF: value beyond the slider max extends the range (no crash)', () => {
+      assert.equal(parseFloat(d3.querySelector('[data-wi-slider="sellingPrice"]').max), 99999);
+      assert.ok(d3.querySelector('#wi-results').textContent.includes(money(simBig.metrics.trueProfit)));
+    });
+  }
+  d3.getElementById('wi-reset').click(); await tick(30);
+  adNum.value = '-5'; adNum.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  test('WHAT-IF: negative number input is ignored (no-change verdict)', () =>
+    assert.ok(d3.querySelector('#wi-results').textContent.includes('No change yet')));
+
+  /* profit-goal edge cases */
+  const goal3 = d3.getElementById('goal-input');
+  goal3.value = '-3'; goal3.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  test('GOAL: negative target shows the hint, never a plan', () =>
+    assert.ok(d3.getElementById('goal-out').textContent.includes('Type a target profit')));
+  goal3.value = '20'; goal3.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30); // above the demo product's $10.49/sale
+  test('GOAL: a valid target shows a concrete plan', () =>
+    assert.ok(d3.getElementById('goal-out').textContent.includes('To reach')));
+  goal3.value = '0'; goal3.dispatchEvent(new w3.Event('input', { bubbles: true })); await tick(30);
+  test('GOAL: zero target shows the hint instead of crashing (round-3 fix)', () => {
+    const out = d3.getElementById('goal-out').textContent;
+    assert.ok(out.includes('Type a target profit'), 'hint shown');
+    assert.ok(!out.includes('To reach'), 'stale plan cleared');
+  });
+
+  /* zero-cost product: every "no costs" state renders */
+  w3.location.hash = '#/add'; await tick(50);
+  set3('f-name', 'Zero Cost Item'); set3('f-price', '10'); set3('f-units', '5');
+  submit3(); await tick(60);
+  {
+    const zero = storage3().find(p => p.name === 'Zero Cost Item');
+    w3.location.hash = '#/product/' + encodeURIComponent(zero.id); await tick(60);
+    test('ZERO-COST: analysis renders every "no costs" state', () => {
+      assert.equal(d3.querySelector('.diag-tile.diag-leak .diag-value').textContent.trim(), 'None');
+      assert.ok(d3.querySelector('.diag-sentence').textContent.includes('No costs recorded'));
+      assert.ok(d3.querySelector('#analysis-bar').textContent.includes('No costs to show yet'));
+    });
+    test('ZERO-COST: classified profitable (100% margin)', () =>
+      assert.ok(d3.querySelector('#analysis-head .badge-green')));
+  }
+
+  /* back to Free: clear demo, refill to the limit, then demo over the limit */
+  w3.location.hash = '#/pricing'; await tick(50);
+  d3.querySelector('[data-action="deactivate-preview"]').click(); await tick(50);
+  test('PLAN (round 3): back on Free (gold upgrade button returns)', () =>
+    assert.ok(d3.querySelector('#plan-nav .btn-gold')));
+  w3.location.hash = '#/dashboard'; await tick(50);
+  d3.getElementById('btn-clear-demo').click(); await tick(40);
+  d3.getElementById('modal-confirm').click(); await tick(50);
+  test('CLEAR DEMO (round 3): demo gone, real Zero Cost Item survives', () => {
+    assert.equal(storage3().length, 1);
+    assert.ok(d3.querySelector('#table-wrap').textContent.includes('Zero Cost Item'));
+  });
+  for (const nm of ['Real One', 'Real Two']) {
+    w3.location.hash = '#/add'; await tick(50);
+    set3('f-name', nm); set3('f-price', '15'); set3('f-units', '10');
+    set3('f-purchase', '5'); submit3(); await tick(60);
+  }
+  test('FREE LIMIT (round 3): exactly 3 real products at the limit', () =>
+    assert.equal(storage3().length, 3));
+  d3.querySelector('.table-tools [data-action="load-samples"]').click(); await tick(40);
+  d3.getElementById('modal-confirm').click(); await tick(60);
+  test('DEMO OVER LIMIT: demo loads alongside (6 rows), banner says data is safe', () => {
+    assert.equal(d3.querySelectorAll('#table-wrap tbody tr').length, 6);
+    const b = d3.querySelector('#plan-banner');
+    assert.ok(!b.hidden);
+    assert.ok(b.textContent.includes('over the free limit'));
+    assert.ok(b.textContent.includes('safe'));
+  });
+
+  /* print button causes no errors */
+  w3.location.hash = '#/report'; await tick(80);
+  d3.getElementById('report-print').click(); await tick(40);
+  test('PRINT: clicking Generate Report\u2019s print button is error-free', () =>
+    assert.ok(d3.getElementById('report-body').textContent.includes('Profit Report')));
+
+  test('NO PAGE ERRORS across all later audit boots (rounds 1\u20133)', () => {
+    if (PAGE_ERRORS.length) console.error('        page errors: ' + PAGE_ERRORS.slice(0, 5).join(' | '));
+    assert.equal(PAGE_ERRORS.length, 0);
+  });
+  app3.dom.window.close();
+}
 
 /* ---------------- summary ---------------- */
 console.log('\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');

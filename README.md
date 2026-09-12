@@ -173,7 +173,7 @@ profitleak-ai/
 │   ├── csv.test.js         ← CSV export/import tests
 │   ├── plan.test.js        ← FREE/PRO plan tests
 │   ├── report.test.js      ← Profit Report tests
-│   ├── audit.test.js      ← full quality & reliability audit (155 checks)
+│   ├── audit.test.js      ← full quality & reliability audit (187 checks)
 │   └── smoke.test.js       ← full click-through test in jsdom
 ├── scripts/
 │   └── build_standalone.py ← regenerates ProfitLeak-AI.html
@@ -181,9 +181,9 @@ profitleak-ai/
 └── README.md
 ```
 
-## 🔍 Quality & Reliability Audit (v1.7.1 + v1.7.2 round 2)
+## 🔍 Quality & Reliability Audit (v1.7.1 → v1.7.3, three rounds)
 
-Two full independent audit passes over the entire application — **155 automated checks**
+Three full independent audit passes over the entire application — **187 automated checks**
 (`npm run test:audit`), all green, on top of the existing 273 tests:
 
 - **Financial formulas** — every metric verified against the spec
@@ -211,6 +211,11 @@ Two full independent audit passes over the entire application — **155 automate
 - **Round 2 (v1.7.2)** — chart rendering (profit bars, cost donut, unit-economics
   bar, cost ranking) verified number-for-number against the engine; extreme values
   (billions, sub-cent decimals) and floating-point robustness; margin tooltip
+- **Round 3 (v1.7.3)** — interaction edges: deep links, keyboard navigation and
+  aria-expanded a11y state, Escape-key handling (import overlay + confirm dialogs),
+  edit-form validation, combined What-If changes vs. the engine, slider range
+  extension, goal-input edge cases, zero-cost products, demo-over-limit flow, CSV
+  header aliases / reordering / BOM / embedded newlines
 
 Fixes made during the audit (no features changed):
 - Router no longer crashes on malformed hashes such as `#/product/%`
@@ -222,12 +227,15 @@ Fixes made during the audit (no features changed):
   while a genuine 1-cent loss is still LOSING
 - The True-profit tooltip now also explains the profit margin shown underneath it
   (closing the last v1.7 onboarding gap)
+- Typing a $0 goal into the Profit Goal planner crashed its live calculation
+  (TypeError from a null plan) — a $0 or negative target now shows the
+  “type a target” hint instead
 
 ## 🧪 Tests
 
 ```bash
 npm install            # once — installs jsdom for the smoke test
-npm test               # engine + CSV + plan + report + smoke + full QA audit (428 total)
+npm test               # engine + CSV + plan + report + smoke + full QA audit (460 total)
 npm run test:audit    # quality & reliability audit only (143 checks)
 npm run test:calc      # engine tests only (zero dependencies)
 npm run test:csv       # CSV export/import tests (zero dependencies)

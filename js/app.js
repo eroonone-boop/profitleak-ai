@@ -709,7 +709,9 @@
 
     function recalc() {
       var t = parseFloat(input.value);
-      if (input.value === '' || !isFinite(t) || t < 0) {
+      /* a goal must be a positive amount: $0 or negative is meaningless AND
+         goalPlan() returns null for targets <= 0 (previously crashed recalc) */
+      if (input.value === '' || !isFinite(t) || t <= 0) {
         out.innerHTML = '<p class="goal-hint">Type a target profit per sale \u2014 we\u2019ll show the exact price or cost cut that reaches it.</p>';
         return;
       }
