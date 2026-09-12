@@ -1,10 +1,10 @@
 {
   "name": "profitleak-ai",
-  "version": "1.7.6",
+  "version": "1.8.1",
   "private": true,
   "description": "SaaS MVP that shows online sellers their TRUE product profit after all costs (ads, shipping, fees, discounts, returns) and where they're leaking money. FREE + PRO plans.",
   "scripts": {
-    "test": "node tests/calc.test.js && node tests/csv.test.js && node tests/plan.test.js && node tests/report.test.js && node tests/smoke.test.js && node tests/audit.test.js && node tests/e2e.test.js",
+    "test": "node tests/calc.test.js && node tests/csv.test.js && node tests/plan.test.js && node tests/report.test.js && node tests/smoke.test.js && node tests/audit.test.js && node tests/e2e.test.js && node tests/license.test.js",
     "test:calc": "node tests/calc.test.js",
     "test:csv": "node tests/csv.test.js",
     "test:plan": "node tests/plan.test.js",
@@ -12,7 +12,8 @@
     "build:standalone": "python3 scripts/build_standalone.py",
     "test:report": "node tests/report.test.js",
     "test:audit": "node tests/audit.test.js",
-    "test:e2e": "node tests/e2e.test.js"
+    "test:e2e": "node tests/e2e.test.js",
+    "test:license": "node tests/license.test.js"
   },
   "devDependencies": {
     "jsdom": "^24.1.0"

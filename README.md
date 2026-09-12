@@ -297,13 +297,17 @@ Pro can now be **sold**. How it works:
 
 The connection lives in **`js/license.js`** (two constants at the top):
 
+**The store is connected (since v1.8.1):**
+
 ```js
-var GUMROAD_PRODUCT_ID  = ''; // fill after creating the Gumroad product
-var GUMROAD_PRODUCT_URL = ''; // e.g. yourname.gumroad.com/l/profitleak-pro
+var GUMROAD_PRODUCT_ID  = 'mNAS1ImGPnWRtqbqXGMn7g==';
+var GUMROAD_PRODUCT_URL = 'https://profitleakai.gumroad.com/l/profitleak-pro';
 ```
 
-While they are empty the app behaves exactly as before (free preview flow) —
-nothing on the live site ever looks broken. The moment a Gumroad product exists:
+The live site shows the **Buy Pro — $19 one-time** button (linking to the Gumroad
+checkout) and the **license activation box** on the Pricing page. If you ever move
+the store, update these two constants, rebuild and redeploy. While they are empty
+the app behaves exactly as before (free preview flow). To recreate this setup:
 
 1. On Gumroad: product → Content → ♦ menu → **License key** → enable
    *generate a unique license key per sale*.

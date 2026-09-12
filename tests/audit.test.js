@@ -671,8 +671,12 @@ test('FREE LIMIT: 4th product blocked with upsell panel', () => {
 
 /* ---- upgrade to Pro ---- */
 w.location.hash = '#/pricing'; await tick(60);
-d.querySelector('[data-action="upgrade"]').click(); await tick(40);
-await modalConfirm();
+test('WIRED STORE: Gumroad buy link + license box shown', () => {
+  assert.ok(d.querySelector('#pricing-body a[href*="gumroad.com/l/profitleak-pro"]'));
+  assert.ok(d.getElementById('license-input'));
+});
+w.PL_PLAN.setPlan('pro'); // simulate the preview (app API, storage-independent)
+w.location.hash = '#/dashboard'; await tick(60);
 test('UPGRADE: Pro preview active', () => assert.ok(d.querySelector('#plan-nav .pro-badge')));
 
 /* ---- pro: add beyond the limit ---- */
@@ -1004,6 +1008,7 @@ test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.or
   SRC_FILES.forEach(f => {
     const rest = f.text
       .split('https://api.gumroad.com').join('')
+      .split('https://profitleakai.gumroad.com').join('') // our store (buy button)
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
     assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');
@@ -1373,8 +1378,8 @@ test('CSV: quoted field with an embedded newline survives the parser', () => {
 
   /* Pro: combined what-if changes + edge inputs */
   w3.location.hash = '#/pricing'; await tick(50);
-  d3.querySelector('[data-action="upgrade"]').click(); await tick(40);
-  d3.getElementById('modal-confirm').click(); await tick(50);
+  w3.PL_PLAN.setPlan('pro'); // simulate the preview
+  w3.location.hash = '#/dashboard'; await tick(60);
   test('UPGRADE (round 3): Pro preview active', () =>
     assert.ok(d3.querySelector('#plan-nav .pro-badge')));
 

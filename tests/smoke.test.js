@@ -267,20 +267,24 @@ async function main() {
   test('trust line: no payment required today', () =>
     assert.ok(d.querySelector('.pricing-trust').textContent.includes('One-time payment')));
 
-  d.querySelector('[data-action="upgrade"]').click();
-  await tick(30);
-  test('upgrade button shows "Pro is coming soon" dialog', () => {
-    assert.ok(!d.querySelector('#modal-overlay').hidden);
-    const t = d.querySelector('#modal-overlay').textContent;
-    assert.ok(t.includes('coming soon'));
+  /* store is LIVE (v1.8.1): the PRO card links to Gumroad + a license box */
+  test('PRO card links to the live Gumroad store', () => {
+    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/profitleak-pro"]');
+    assert.ok(link, 'buy link present');
+    assert.ok(link.textContent.includes('$19'));
+    assert.equal(link.getAttribute('target'), '_blank');
   });
-  test('dialog offers free preview access', () =>
-    assert.ok(d.querySelector('#modal-overlay').textContent.includes('free preview')));
-  d.getElementById('modal-confirm').click();
-  await tick();
+  test('license activation box is shown to free users', () => {
+    assert.ok(d.getElementById('license-input'));
+    assert.ok(d.getElementById('license-activate-btn'));
+  });
+  /* simulate the free-preview Pro state (app API — works even with blocked storage) */
+  w.PL_PLAN.setPlan('pro');
+  w.location.hash = '#/dashboard'; await tick(70);
   test('preview activated — topbar shows the PRO badge', () => {
     assert.ok(d.querySelector('#plan-nav .pro-badge'));
   });
+  w.location.hash = '#/pricing'; await tick(70);
   test('plan is saved to browser storage', () => {
     let saved = null;
     try { saved = w.localStorage.getItem('profitleak.plan.v1'); } catch (e) { saved = null; }

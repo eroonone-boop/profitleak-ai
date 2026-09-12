@@ -17,8 +17,8 @@
      license box stays hidden and the app keeps its free-preview
      upgrade flow, so nothing on the live site ever looks broken.
      ================================================================= */
-  var GUMROAD_PRODUCT_ID = '';  // e.g. '32-nPAicqbLj8B_WswVlMw=='
-  var GUMROAD_PRODUCT_URL = ''; // e.g. yourname.gumroad.com/l/profitleak-pro
+  var GUMROAD_PRODUCT_ID = 'mNAS1ImGPnWRtqbqXGMn7g==';  // e.g. '32-nPAicqbLj8B_WswVlMw=='
+  var GUMROAD_PRODUCT_URL = 'https://profitleakai.gumroad.com/l/profitleak-pro'; // e.g. yourname.gumroad.com/l/profitleak-pro
 
   /* ---------- storage (localStorage with memory fallback) ---------- */
   function storageAvailable() {

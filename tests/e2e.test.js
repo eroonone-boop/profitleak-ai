@@ -172,9 +172,14 @@ async function main() {
   /* ============ 7. WHAT-IF SIMULATOR ============ */
   console.log('\n\u2500\u2500 7. What-If Simulator \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
   await go('#/pricing');
-  d.querySelector('[data-action="upgrade"]').click(); await tick(40);
-  await confirmModal();
-  test('upgrade to Pro preview works from the pricing page', () =>
+  test('PRO card links to the live Gumroad store ($19) + license box', () => {
+    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/profitleak-pro"]');
+    assert.ok(link && link.textContent.includes('$19'));
+    assert.ok(d.getElementById('license-input'));
+  });
+  w.PL_PLAN.setPlan('pro'); // simulate the preview for the simulator stage
+  await go('#/dashboard');
+  test('Pro (preview) active for the simulator stage', () =>
     assert.ok(d.querySelector('#plan-nav .pro-badge')));
   await go('#/product/' + encodeURIComponent(storage()[0].id));
   test('simulator now unlocked (7 sliders + number inputs)', () => {
@@ -264,8 +269,7 @@ async function main() {
     assert.ok(d.querySelector('#form-upsell').textContent.includes('free plan limit'));
   });
   await go('#/pricing');
-  d.querySelector('[data-action="upgrade"]').click(); await tick(40);
-  await confirmModal();
+  w.PL_PLAN.setPlan('pro'); // simulate the preview
   await go('#/add');
   set('f-name', 'Pro Fourth Item'); set('f-price', '60'); set('f-units', '10');
   set('f-purchase', '30');

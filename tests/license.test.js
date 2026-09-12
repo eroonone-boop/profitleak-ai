@@ -261,8 +261,10 @@ async function main() {
   dom2.window.close();
 
   // unconfigured build (as shipped before the store opens): box hidden, preview flow intact
+  /* simulate a build shipped BEFORE the store was connected (empty constants) */
   const dom3 = await bootApp(() => gumroadResponse(VALID_PURCHASE));
   const w3 = dom3.window, d3 = w3.document;
+  w3.PL_LICENSE._setStoreConnection('', '');
   d3.querySelector('#welcome-start').click(); await tick(50);
   w3.location.hash = '#/pricing'; await tick(80);
   let upgradeBtn = null;
