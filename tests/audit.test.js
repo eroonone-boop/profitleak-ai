@@ -1009,6 +1009,8 @@ test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.or
     const rest = f.text
       .split('https://api.gumroad.com').join('')
       .split('https://profitleakai.gumroad.com').join('') // our store (buy button)
+      .split('https://eroonone-boop.github.io').join('') // this site (SEO meta tags)
+      .split('https://schema.org').join('') // JSON-LD context (a vocabulary name, not a fetched resource)
       .split('https://mohamedramli.gumroad.com').join('') // earlier listing (still sold)
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
@@ -1021,7 +1023,10 @@ test('SECURITY: no eval / new Function / dynamic code execution', () => {
 });
 test('SECURITY: no external URLs loaded (CDN/fonts/scripts/images)', () => {
   SRC_FILES.forEach(f => {
-    const m = f.text.match(/(src|href)\s*=\s*["']https?:\/\//i);
+    /* The canonical <link> declares our own page URL for search engines —
+       it is metadata, not a fetched resource, and points at this site. */
+    const rest = f.text.replace(/<link rel="canonical"[^>]*>/gi, '');
+    const m = rest.match(/(src|href)\s*=\s*["']https?:\/\//i);
     assert.ok(!m, f.name + ' references ' + (m && m[0]));
   });
 });
