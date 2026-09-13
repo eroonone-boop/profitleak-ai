@@ -3943,8 +3943,12 @@ th.num, td.num { text-align: right; }
      license box stays hidden and the app keeps its free-preview
      upgrade flow, so nothing on the live site ever looks broken.
      ================================================================= */
-  var GUMROAD_PRODUCT_ID = 'HuG5_rdmz94J0jfKZ9mf_A==';  // e.g. '32-nPAicqbLj8B_WswVlMw=='
-  var GUMROAD_PRODUCT_URL = 'https://mohamedramli.gumroad.com/l/profitleak-pro'; // e.g. yourname.gumroad.com/l/profitleak-pro
+  var GUMROAD_PRODUCT_ID = '_tMI22ClXjG_kUeB9tu37Q==';  // live listing (international)
+  var GUMROAD_PRODUCT_URL = 'https://profitleakai.gumroad.com/l/ecommerce-profit-calculator';
+  /* The same Pro license is also sold through an earlier Gumroad listing.
+     Gumroad verifies a key against ONE product per call, so keys bought
+     there are checked against these extra ids after the primary one. */
+  var EXTRA_PRODUCT_IDS = ['HuG5_rdmz94J0jfKZ9mf_A=='];
 
   /* ---------- storage (localStorage with memory fallback) ---------- */
   function storageAvailable() {
@@ -3999,9 +4003,9 @@ th.num, td.num { text-align: right; }
 
   /* ---------- Gumroad license verify API ----------
      gumroad.com/api — one call at activation time only. */
-  function verifyWithGumroad(key) {
+  function verifyWithGumroad(key, productId) {
     var body = new URLSearchParams();
-    body.set('product_id', GUMROAD_PRODUCT_ID);
+    body.set('product_id', productId);
     body.set('license_key', key);
     body.set('increment_uses_count', 'false'); // activation may be repeated on new devices
 
@@ -4014,7 +4018,7 @@ th.num, td.num { text-align: right; }
          that is a normal rejection, not a network problem. */
       return res.json().catch(function () { return null; }).then(function (data) {
         if (data && data.success !== true) {
-          return { valid: false, reason: 'This license key was not recognized. Double-check the code from your purchase email.' };
+          return { valid: false, retry: true, reason: 'This license key was not recognized. Double-check the code from your purchase email.' };
         }
         if (!data) {
           return { valid: false, reason: 'Gumroad could not be reached (HTTP ' + res.status + '). Please try again in a moment.' };
@@ -4031,6 +4035,29 @@ th.num, td.num { text-align: right; }
     });
   }
 
+  /* ---------- multi-store verification ----------
+     A key that exists on any listing activates. Only plain
+     \"not recognized\" rejections fall through to the next listing;
+     refunded / disputed / unreachable stop immediately so the most
+     accurate reason reaches the user. */
+  function verifyAgainstStores(key) {
+    var ids = [GUMROAD_PRODUCT_ID].concat(EXTRA_PRODUCT_IDS).filter(function (v, i, a) {
+      return !!v && a.indexOf(v) === i;
+    });
+    var lastRejection = null;
+    function attempt(i) {
+      if (i >= ids.length) {
+        return Promise.resolve(lastRejection || { valid: false, reason: 'This license key was not recognized. Double-check the code from your purchase email.' });
+      }
+      return verifyWithGumroad(key, ids[i]).then(function (r) {
+        if (r.valid || !r.retry) return r;
+        lastRejection = r;
+        return attempt(i + 1);
+      });
+    }
+    return attempt(0);
+  }
+
   function activate(rawKey) {
     if (!GUMROAD_PRODUCT_ID) {
       return Promise.resolve({
@@ -4045,7 +4072,7 @@ th.num, td.num { text-align: right; }
         reason: 'That code looks too short \u2014 copy the complete license key from your purchase email.'
       });
     }
-    return verifyWithGumroad(key).then(function (r) {
+    return verifyAgainstStores(key).then(function (r) {
       if (!r.valid) return { ok: false, reason: r.reason };
       state.license = { key: key, email: r.email, activatedAt: new Date().toISOString() };
       writeLicense(state.license);
@@ -4092,9 +4119,10 @@ th.num, td.num { text-align: right; }
     onChange: onChange,
     /* exposed for the automated tests */
     _normalizeKey: normalizeKey,
-    _setStoreConnection: function (id, url) {
+    _setStoreConnection: function (id, url, extraIds) {
       GUMROAD_PRODUCT_ID = String(id || '');
       GUMROAD_PRODUCT_URL = String(url || '');
+      EXTRA_PRODUCT_IDS = Array.isArray(extraIds) ? extraIds.map(String) : [];
     },
     _reset: function () { deactivate(); }
   };

@@ -173,7 +173,7 @@ async function main() {
   console.log('\n\u2500\u2500 7. What-If Simulator \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
   await go('#/pricing');
   test('PRO card links to the live Gumroad store ($19) + license box', () => {
-    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/profitleak-pro"]');
+    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/ecommerce-profit-calculator"]');
     assert.ok(link && link.textContent.includes('$19'));
     assert.ok(d.getElementById('license-input'));
   });

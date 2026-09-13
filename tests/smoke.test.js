@@ -269,7 +269,7 @@ async function main() {
 
   /* store is LIVE (v1.8.1): the PRO card links to Gumroad + a license box */
   test('PRO card links to the live Gumroad store', () => {
-    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/profitleak-pro"]');
+    const link = d.querySelector('#pricing-body a[href*="gumroad.com/l/ecommerce-profit-calculator"]');
     assert.ok(link, 'buy link present');
     assert.ok(link.textContent.includes('$19'));
     assert.equal(link.getAttribute('target'), '_blank');

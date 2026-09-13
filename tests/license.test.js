@@ -112,6 +112,41 @@ async function main() {
     assert.ok(r.reason.includes('not recognized'));
   });
 
+  // ---- multi-store fallback (v1.8.3): earlier listing keys still activate ----
+  License._setStoreConnection('NEW-PRODUCT-ID', 'https://teststore.example/l/new', ['OLD-PRODUCT-ID']);
+  await atest('key from the earlier listing activates via store fallback', async () => {
+    const calls = [];
+    mockFetch((url, opts) => {
+      const body = String(opts.body);
+      calls.push(body);
+      if (body.includes('product_id=OLD-PRODUCT-ID')) return gumroadResponse(VALID_PURCHASE);
+      return gumroadResponse({ success: false, message: 'not found for this product' }, false);
+    });
+    const r = await License.activate(KEY);
+    assert.ok(r.ok, r.reason);
+    assert.equal(calls.length, 2, 'should try primary then fallback');
+    assert.ok(calls[0].includes('product_id=NEW-PRODUCT-ID'));
+    assert.ok(r.license.email === 'buyer@example.com');
+  });
+  await atest('key unknown on every listing is rejected after all attempts', async () => {
+    let calls = 0;
+    mockFetch(() => { calls++; return gumroadResponse({ success: false }, false); });
+    const r = await License.activate('EEEEEEEE-EEEEEEEE-EEEEEEEE-EEEEEEEE');
+    assert.ok(!r.ok);
+    assert.ok(r.reason.includes('not recognized'));
+    assert.equal(calls, 2);
+  });
+  await atest('refunded on the first listing is NOT retried on the second', async () => {
+    let calls = 0;
+    mockFetch(() => { calls++; return gumroadResponse({ success: true, purchase: { email: 'x@example.com', refunded: true } }); });
+    const r = await License.activate(KEY);
+    assert.ok(!r.ok);
+    assert.ok(r.reason.includes('refunded'));
+    assert.equal(calls, 1, 'refund must surface immediately');
+  });
+  License._setStoreConnection('TEST-PRODUCT-ID', 'https://teststore.example/l/profitleak-pro');
+  // ---------------------------------------------------------------------------
+
   mockFetch(() => gumroadResponse({ success: true, purchase: { email: 'x@example.com', refunded: true } }));
   await atest('refunded purchase is rejected', async () => {
     const r = await License.activate(KEY);

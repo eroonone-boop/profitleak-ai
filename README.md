@@ -300,8 +300,9 @@ The connection lives in **`js/license.js`** (two constants at the top):
 **The store is connected (since v1.8.1):**
 
 ```js
-var GUMROAD_PRODUCT_ID  = 'HuG5_rdmz94J0jfKZ9mf_A==';
-var GUMROAD_PRODUCT_URL = 'https://mohamedramli.gumroad.com/l/profitleak-pro';
+var GUMROAD_PRODUCT_ID  = '_tMI22ClXjG_kUeB9tu37Q==';
+var GUMROAD_PRODUCT_URL = 'https://profitleakai.gumroad.com/l/ecommerce-profit-calculator';
+/* keys from the earlier listing still activate (EXTRA_PRODUCT_IDS) */
 ```
 
 The live site shows the **Buy Pro — $19 one-time** button (linking to the Gumroad
