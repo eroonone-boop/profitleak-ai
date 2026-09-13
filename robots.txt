@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://eroonone-boop.github.io/profitleak-ai/sitemap.xml
+Sitemap: https://profitleak.js.org/sitemap.xml
