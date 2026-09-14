@@ -1009,7 +1009,7 @@ test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.or
     const rest = f.text
       .split('https://api.gumroad.com').join('')
       .split('https://profitleakai.gumroad.com').join('') // our store (buy button)
-      .split('https://profitleak.js.org').join('') // our custom domain (SEO meta tags)
+      .split('https://profitleak-ai.github.io').join('') // this site (SEO meta tags)
       .split('https://schema.org').join('') // JSON-LD context (a vocabulary name, not a fetched resource)
       .split('https://mohamedramli.gumroad.com').join('') // earlier listing (still sold)
       .split('http://www.w3.org').join('')
