@@ -675,7 +675,7 @@ test('WIRED STORE: Gumroad buy link + license box shown', () => {
   assert.ok(d.querySelector('#pricing-body a[href*="gumroad.com/l/ecommerce-profit-calculator"]'));
   assert.ok(d.getElementById('license-input'));
 });
-w.PL_PLAN.setPlan('pro'); // simulate the preview (app API, storage-independent)
+w.PL_PLAN.setPlan('pro'); // simulate licensed Pro (app API, storage-independent)
 w.location.hash = '#/dashboard'; await tick(60);
 test('UPGRADE: Pro preview active', () => assert.ok(d.querySelector('#plan-nav .pro-badge')));
 
@@ -1384,7 +1384,7 @@ test('CSV: quoted field with an embedded newline survives the parser', () => {
 
   /* Pro: combined what-if changes + edge inputs */
   w3.location.hash = '#/pricing'; await tick(50);
-  w3.PL_PLAN.setPlan('pro'); // simulate the preview
+  w3.PL_PLAN.setPlan('pro'); // simulate licensed Pro
   w3.location.hash = '#/dashboard'; await tick(60);
   test('UPGRADE (round 3): Pro preview active', () =>
     assert.ok(d3.querySelector('#plan-nav .pro-badge')));
@@ -1448,8 +1448,8 @@ test('CSV: quoted field with an embedded newline survives the parser', () => {
   }
 
   /* back to Free: clear demo, refill to the limit, then demo over the limit */
+  w3.PL_PLAN.setPlan('free'); // the pre-launch preview era has ended
   w3.location.hash = '#/pricing'; await tick(50);
-  d3.querySelector('[data-action="deactivate-preview"]').click(); await tick(50);
   test('PLAN (round 3): back on Free (gold upgrade button returns)', () =>
     assert.ok(d3.querySelector('#plan-nav .btn-gold')));
   w3.location.hash = '#/dashboard'; await tick(50);

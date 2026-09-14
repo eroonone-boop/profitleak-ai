@@ -7,7 +7,7 @@
    2) App journey (jsdom): license box appears once the store is
       connected, activation unlocks Pro, invalid keys are rejected
       with a clear reason, the license survives a reload, removal
-      returns to Free, and the old free-preview flow still works.
+      returns to Free, and an unconfigured build never unlocks Pro for free.
    ============================================================= */
 'use strict';
 
@@ -295,8 +295,7 @@ async function main() {
   });
   dom2.window.close();
 
-  // unconfigured build (as shipped before the store opens): box hidden, preview flow intact
-  /* simulate a build shipped BEFORE the store was connected (empty constants) */
+  // unconfigured build (self-hosted, empty store constants): no license box, no free unlock
   const dom3 = await bootApp(() => gumroadResponse(VALID_PURCHASE));
   const w3 = dom3.window, d3 = w3.document;
   w3.PL_LICENSE._setStoreConnection('', '');
@@ -310,13 +309,14 @@ async function main() {
   });
   upgradeBtn.click();
   await tick(80);
-  test('coming-soon dialog with free preview still offered', () => {
+  test('upgrade dialog points to checkout, no free preview offered', () => {
     assert.ok(!d3.querySelector('#modal-overlay').hidden);
-    assert.ok(d3.querySelector('#modal-overlay').textContent.includes('free preview'));
+    assert.ok(d3.querySelector('#modal-overlay').textContent.includes('$19'));
+    assert.ok(!d3.querySelector('#modal-overlay').textContent.includes('free preview'));
   });
   d3.getElementById('modal-confirm').click(); await tick(60);
-  test('free preview activation still works alongside the license system', () =>
-    assert.ok(d3.querySelector('#plan-nav .pro-badge')));
+  test('confirming never unlocks Pro without a purchase', () =>
+    assert.ok(!d3.querySelector('#plan-nav .pro-badge')));
 
   test('no unexpected page errors in the license journey', () => {
     if (pageErrors.length) console.error('        page errors: ' + pageErrors.slice(0, 5).join(' | '));

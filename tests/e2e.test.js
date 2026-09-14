@@ -257,10 +257,10 @@ async function main() {
   /* ============ 10. FREE / PRO ============ */
   console.log('\n\u2500\u2500 10. Free / Pro \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
   await go('#/pricing');
-  d.querySelector('[data-action="deactivate-preview"]').click(); await tick(60);
-  test('deactivating Pro returns to Free (banner shows 3 of 3)', () => {
+  w.PL_PLAN.setPlan('free'); // preview era ended — plan returns to Free
+  await go('#/dashboard');
+  test('returning to Free shows the upgrade button (data stays safe)', () => {
     assert.ok(d.querySelector('#plan-nav .btn-gold'));
-    w.location.hash = '#/dashboard'; 
   });
   await go('#/add');
   test('free plan at the limit blocks a 4th product with upgrade panel', () => {

@@ -2729,9 +2729,9 @@ th.num, td.num { text-align: right; }
 
   /* =============================================================
      PLAN (FREE / PRO) — monetization layer (v1.4)
-     No authentication, no payments: the plan is a simple local
-     flag. Default: FREE (up to 3 products). PRO can be activated
-     as a free preview until the paid launch ("coming soon").
+     No authentication: the plan is a simple local flag.
+     Default: FREE (up to 3 products). PRO comes exclusively from
+     a verified Gumroad license (see js/license.js).
      ============================================================= */
   var PLAN_KEY = 'profitleak.plan.v1';
   var FREE_PRODUCT_LIMIT = 3;
@@ -2739,9 +2739,9 @@ th.num, td.num { text-align: right; }
 
   var memoryPlan = 'free';
 
-  /* Pro can also come from a paid license (see js/license.js).
-     The license layer reports its state here; the free-preview
-     flag above stays completely independent. */
+  /* Pro comes from a paid license (see js/license.js).
+     The license layer reports its state here. Any pre-launch
+     preview flag left in storage is cleared below. */
   var licenseActive = false;
 
   function readPlan() {
@@ -2771,6 +2771,11 @@ th.num, td.num { text-align: right; }
       return Math.max(0, FREE_PRODUCT_LIMIT - currentCount);
     }
   };
+
+  /* The pre-launch free preview ended when the store opened.
+     A leftover preview flag is cleared on load; licensed users
+     keep Pro via licenseActive (set by app.js at boot). */
+  if (readPlan() === 'pro') writePlan('free');
 
   /* ---------- Sanitize products loaded from storage ---------- */
   function num(v, fallback) {
@@ -3968,7 +3973,7 @@ th.num, td.num { text-align: right; }
   /* ==== STORE CONNECTION ===========================================
      These two constants connect the app to your Gumroad product.
      They are filled in when the store goes live. Until then the
-     license box stays hidden and the app keeps its free-preview
+     license box stays hidden and Pro stays available only
      upgrade flow, so nothing on the live site ever looks broken.
      ================================================================= */
   var GUMROAD_PRODUCT_ID = '_tMI22ClXjG_kUeB9tu37Q==';  // live listing (international)
@@ -4572,7 +4577,7 @@ th.num, td.num { text-align: right; }
           '<a class="btn btn-primary btn-lg" href="#/pricing">Upgrade to Pro</a>' +
           '<a class="btn btn-ghost" href="#/dashboard">Back to dashboard</a>' +
         '</div>' +
-        '<p class="upsell-note">Pro is $19 one-time at launch \u2014 until the store opens, you can activate free preview access.</p>';
+        '<p class="upsell-note">Pro is $19 one-time \u2014 a lifetime license, no subscription.</p>';
       return;
     }
     layout.hidden = false;
@@ -5414,7 +5419,7 @@ th.num, td.num { text-align: right; }
     var host = $('#plan-nav');
     if (!host) return;
     host.innerHTML = Plan.isPro()
-      ? '<span class="pro-badge" title="' + (Plan.hasLicense() ? 'Pro licensed \u2014 manage in Pricing' : 'Pro preview active \u2014 manage in Pricing') + '">PRO</span>'
+      ? '<span class="pro-badge" title="' + (Plan.hasLicense() ? 'Pro licensed \u2014 manage in Pricing' : 'Pro \u2014 manage in Pricing') + '">PRO</span>'
       : '<a class="btn btn-gold btn-sm" href="#/pricing">\u26A1 Upgrade to Pro</a>';
   }
 
@@ -5488,15 +5493,12 @@ th.num, td.num { text-align: right; }
     if (pro && licensed) {
       proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro licensed \u2014 thank you!</span>' +
         '<button type="button" class="link-btn" data-action="license-remove">Remove license</button></div>';
-    } else if (pro) {
-      proBtn = '<div class="pro-active-box"><span class="badge badge-green">\u2713 Pro active (free preview)</span>' +
-        '<button type="button" class="link-btn" data-action="deactivate-preview">Deactivate preview</button></div>';
     } else if (License && License.isConfigured()) {
       proBtn = '<a class="btn btn-light btn-lg" href="' + esc(License.buyUrl()) + '" target="_blank" rel="noopener">Buy Pro \u2014 $19 one-time</a>' +
         '<p class="price-note">Secure checkout via Gumroad \u00B7 license key delivered instantly by email</p>';
     } else {
       proBtn = '<button type="button" class="btn btn-light btn-lg" data-action="upgrade">Upgrade to Pro \u2014 $19 one-time</button>' +
-        '<p class="price-note">One-time payment \u00B7 store opens at launch</p>';
+        '<p class="price-note">One-time payment \u00B7 secure checkout via Gumroad</p>';
     }
 
     /* activate-a-license box (only once the store is connected) */
@@ -5558,15 +5560,14 @@ th.num, td.num { text-align: right; }
 
   function showProComingSoon() {
     confirmDialog({
-      title: 'Pro is coming soon \uD83D\uDE80',
-      message: 'Pro is $19 one-time (launch offer for the first customers) with unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Until the store opens, you can activate free preview access and use every Pro feature at no cost.',
-      confirmText: 'Activate free preview',
+      title: 'Get Pro \u2014 $19 one-time \uD83D\uDE80',
+      message: 'Pro includes unlimited products, the What-If Simulator, cost ranking, profit goals and marketplace integrations. Secure checkout on Gumroad \u2014 your license key arrives by email within minutes and activates right here on the Pricing page.',
+      confirmText: 'Continue to checkout',
       cancelText: 'Not now'
     }).then(function (ok) {
       if (!ok) return;
-      Plan.setPlan('pro');
-      render();
-      toast('Pro preview activated \u2014 every feature unlocked \u2713');
+      var url = License && License.buyUrl ? License.buyUrl() : '';
+      if (url) window.open(url, '_blank', 'noopener');
     });
   }
 
@@ -5712,11 +5713,6 @@ th.num, td.num { text-align: right; }
         License.deactivate();
         render();
         toast('License removed \u2014 you are back on the Free plan. Your products are safe.');
-      }
-      else if (act === 'deactivate-preview') {
-        Plan.setPlan('free');
-        render();
-        toast('Switched back to the Free plan \u2014 your products are safe.');
       }
       return;
     }

@@ -278,7 +278,7 @@ async function main() {
     assert.ok(d.getElementById('license-input'));
     assert.ok(d.getElementById('license-activate-btn'));
   });
-  /* simulate the free-preview Pro state (app API — works even with blocked storage) */
+  /* simulate an unlicensed pro plan flag (app API — works even with blocked storage) */
   w.PL_PLAN.setPlan('pro');
   w.location.hash = '#/dashboard'; await tick(70);
   test('preview activated — topbar shows the PRO badge', () => {
@@ -290,10 +290,10 @@ async function main() {
     try { saved = w.localStorage.getItem('profitleak.plan.v1'); } catch (e) { saved = null; }
     assert.ok(saved === 'pro' || saved === null);
   });
-  test('pricing page now shows "Pro active (free preview)" + deactivate link', () => {
-    const t = d.querySelector('#pricing-body').textContent;
-    assert.ok(t.includes('Pro active (free preview)'));
-    assert.ok(d.querySelector('[data-action="deactivate-preview"]'));
+  test('unlicensed plan flag still shows the Buy Pro button (preview era ended)', () => {
+    assert.ok(d.querySelector('#pricing-body a[href*="gumroad.com/l/ecommerce-profit-calculator"]'),
+      'buy link present');
+    assert.ok(!d.querySelector('[data-action="deactivate-preview"]'));
   });
 
   /* ================= STAGE 3 — PRO USER ================= */
@@ -569,9 +569,10 @@ async function main() {
   /* ---- back to free (grandfathered data stays safe) ---- */
   w.location.hash = '#/pricing';
   await tick();
-  d.querySelector('[data-action="deactivate-preview"]').click();
+  w.PL_PLAN.setPlan('free'); // preview era ended — plan returns to Free
+  w.location.hash = '#/dashboard';
   await tick(30);
-  test('deactivate preview returns to the free plan', () => {
+  test('returning to the free plan shows the upgrade button', () => {
     assert.ok(d.querySelector('#plan-nav .btn-gold'));
   });
   w.location.hash = '#/dashboard';
