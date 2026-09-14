@@ -994,17 +994,20 @@ const SRC_FILES = ['js/calc.js', 'js/data.js', 'js/charts.js', 'js/report.js', '
   .map(f => ({ name: f, text: fs.readFileSync(path.join(ROOT, f), 'utf-8') }));
 SRC_FILES.push({ name: 'ProfitLeak-AI.html (build)', text: STANDALONE });
 
-test('SECURITY: no network calls except the single license-verify endpoint (v1.8)', () => {
-  /* The ONLY network call in the whole app is the Gumroad license
-     verification (api.gumroad.com), triggered solely when a user
-     pastes a paid license key. Everything else stays offline. */
+test('SECURITY: network calls limited to the two license-verify endpoints (v1.10)', () => {
+  /* The only network calls in the whole app are license verifications,
+     triggered solely when a user pastes a paid license key:
+     Gumroad keys -> api.gumroad.com, on-site PL- keys -> our endpoint.
+     Everything else stays offline. */
   SRC_FILES.forEach(f => {
-    const rest = f.text.split("fetch('https://api.gumroad.com/v2/licenses/verify'").join('LICENSE-VERIFY');
+    const rest = f.text
+      .split("fetch('https://api.gumroad.com/v2/licenses/verify'").join('LICENSE-VERIFY-GUMROAD')
+      .split("fetch(SITE_VERIFY_URL").join('LICENSE-VERIFY-SITE');
     ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
       assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
   });
 });
-test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.org', () => {
+test('SECURITY: the only outbound URLs in the source are the known allow-list (v1.10)', () => {
   SRC_FILES.forEach(f => {
     const rest = f.text
       .split('https://api.gumroad.com').join('')
@@ -1012,6 +1015,8 @@ test('SECURITY: the only outbound URLs in the source are api.gumroad.com + w3.or
       .split('https://profitleak-ai.github.io').join('') // this site (SEO meta tags)
       .split('https://schema.org').join('') // JSON-LD context (a vocabulary name, not a fetched resource)
       .split('https://mohamedramli.gumroad.com').join('') // earlier listing (still sold)
+      .split('https://profitleak.netlify.app/.netlify/functions/license-verify').join('') // our on-site license endpoint (v1.10)
+      .split('https://profitleak.netlify.app/.netlify/functions/checkout-start').join('') // our on-site checkout (v1.10)
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
     assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');
