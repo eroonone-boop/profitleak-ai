@@ -256,7 +256,7 @@ async function main() {
   });
   test('pricing cards show the right tags and ribbon', () => {
     const t = d.querySelector('#pricing-body').textContent;
-    assert.ok(t.includes('For getting started') && t.includes('For serious online sellers'));
+    assert.ok(t.includes('Your first session \u2014 free') && t.includes('For serious online sellers'));
     assert.ok(t.includes('Most popular'));
   });
   test('PRO card lists the key features', () => {

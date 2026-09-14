@@ -31,7 +31,7 @@
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "USD",
-    "description": "Free for up to 3 products with full diagnosis. Pro: $19 one-time, lifetime license."
+    "description": "Free to try \u2014 one full session with complete diagnosis. Pro: $19 one-time, lifetime license."
   }
 }
 </script>
@@ -2220,6 +2220,27 @@ th.num, td.num { text-align: right; }
   .landing-nav-right { gap: 12px; }
 }
 
+
+/* ================================================================
+   FREE-TRIAL PAYWALL (v1.9) — one-session free plan
+================================================================ */
+.trial-overlay { position: fixed; inset: 0; z-index: 120; display: flex;
+  align-items: center; justify-content: center; padding: 24px;
+  background: rgba(4, 6, 20, 0.94); overflow-y: auto; }
+.trial-overlay[hidden] { display: none; }
+.trial-card { width: 100%; max-width: 540px; background: var(--surface);
+  border: 1.5px solid var(--border); border-radius: 18px; padding: 34px 30px 26px;
+  text-align: center; box-shadow: var(--shadow-lg); }
+.trial-icon { font-size: 40px; line-height: 1; margin-bottom: 12px; }
+.trial-card h2 { font-size: 24px; margin: 0 0 10px; color: var(--text); }
+.trial-text { font-size: 14.5px; line-height: 1.6; color: var(--text-muted); margin: 0 0 20px; }
+.trial-actions { display: flex; justify-content: center; margin-bottom: 10px; }
+.trial-note { font-size: 12px; color: var(--text-muted); margin: 0 0 20px; }
+.trial-license { border-top: 1.5px dashed var(--border); padding-top: 18px; margin-bottom: 16px; }
+.trial-license .license-row input { background: var(--surface-2); }
+.trial-safe { font-size: 12px; color: var(--text-muted); margin: 0; }
+@media (max-width: 520px) { .trial-card { padding: 26px 18px 20px; } }
+
 </style>
 </head>
 <body>
@@ -2562,7 +2583,7 @@ th.num, td.num { text-align: right; }
       <div class="page-head">
         <div>
           <h1>Simple pricing</h1>
-          <p class="page-sub">Start free. Upgrade when you&rsquo;re serious about profit.</p>
+          <p class="page-sub">First session free. Upgrade when you&rsquo;re serious about profit.</p>
         </div>
         <div class="page-actions">
           <a class="btn btn-ghost" href="#/dashboard">&#8592; Back to dashboard</a>
@@ -2639,6 +2660,28 @@ th.num, td.num { text-align: right; }
       <button class="btn btn-ghost btn-lg" id="welcome-demo" type="button">Try Demo Data</button>
     </div>
     <p class="welcome-note">Your data is stored only in your browser. No account needed.</p>
+  </div>
+</div>
+
+<!-- ============ FREE TRIAL ENDED — LICENSE PAYWALL (v1.9) ============ -->
+<div class="trial-overlay" id="trial-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="trial-title">
+  <div class="trial-card">
+    <div class="trial-icon" aria-hidden="true">&#128274;</div>
+    <h2 id="trial-title">Your free session has ended</h2>
+    <p class="trial-text" id="trial-text"></p>
+    <div class="trial-actions">
+      <a class="btn btn-gold btn-lg" id="trial-buy" href="#" target="_blank" rel="noopener">Buy Pro &mdash; $19 one-time</a>
+    </div>
+    <p class="trial-note">Instant email delivery &middot; Lifetime license &middot; Secure checkout by Gumroad</p>
+    <div class="trial-license">
+      <div class="license-title">Already bought? Activate your license</div>
+      <div class="license-row">
+        <input id="trial-license-input" type="text" placeholder="Paste the license key from your purchase email" aria-label="License key" autocomplete="off">
+        <button class="btn btn-primary btn-sm" type="button" id="trial-activate-btn">Activate</button>
+      </div>
+      <div class="license-error" id="trial-license-error" hidden></div>
+    </div>
+    <p class="trial-safe">Your data stays in this browser &mdash; everything will be waiting for you right after activation.</p>
   </div>
 </div>
 
@@ -2776,6 +2819,82 @@ th.num, td.num { text-align: right; }
      A leftover preview flag is cleared on load; licensed users
      keep Pro via licenseActive (set by app.js at boot). */
   if (readPlan() === 'pro') writePlan('free');
+
+  /* ==== FREE TRIAL — ONE SESSION (v1.9) ======================
+     The Free plan is a one-session trial: the visitor's first
+     session has full free access. When that session ends (all
+     tabs closed, or away for more than TRIAL_GRACE_MS), the app
+     asks for a Pro license (paywall in app.js). Licensed users
+     are never gated, and the gate only engages when the store
+     is connected (checked in app.js, so self-hosted builds of
+     this open-source app stay fully free).
+     ============================================================= */
+  var TRIAL_KEY = 'profitleak.trial.v1';
+  var TRIAL_SESSION_KEY = 'profitleak.trial.session.v1';
+  var TRIAL_GRACE_MS = 30 * 60 * 1000; /* back within 30 min = same sitting */
+
+  var memoryTrial = null;    /* fallback when localStorage is blocked */
+  var memorySession = false; /* fallback when sessionStorage is blocked */
+
+  function readTrial() {
+    if (persistent) {
+      try {
+        var raw = localStorage.getItem(TRIAL_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return memoryTrial; }
+    }
+    return memoryTrial;
+  }
+  function writeTrial(t) {
+    memoryTrial = t;
+    if (!persistent) return;
+    try { localStorage.setItem(TRIAL_KEY, JSON.stringify(t)); } catch (e) { /* ignore */ }
+  }
+  function hasSessionMarker() {
+    try { return sessionStorage.getItem(TRIAL_SESSION_KEY) === '1'; } catch (e) { return memorySession; }
+  }
+  function markSession() {
+    memorySession = true;
+    try { sessionStorage.setItem(TRIAL_SESSION_KEY, '1'); } catch (e) { /* ignore */ }
+  }
+
+  var Trial = {
+    active: true, /* set properly by evaluate() at boot */
+    evaluate: function () {
+      if (Plan.isPro()) return true; /* licensed: open, without touching the trial state */
+      var now = Date.now();
+      var t = readTrial();
+      if (!t || !t.startedAt) {                 /* first ever visit: start the free session */
+        writeTrial({ startedAt: now, lastActive: now });
+        markSession();
+        this.active = true; return true;
+      }
+      var resume = t.lastActive && (now - t.lastActive) < TRIAL_GRACE_MS;
+      if (hasSessionMarker() || resume) {       /* same sitting: tab still open, or quick return */
+        t.lastActive = now; writeTrial(t); markSession();
+        this.active = true; return true;
+      }
+      this.active = false; return false;        /* the one free session is over */
+    },
+    isLocked: function () { return !Plan.isPro() && !this.active; },
+    heartbeat: function () {
+      if (this.isLocked()) return;
+      var t = readTrial();
+      if (t && t.startedAt) { t.lastActive = Date.now(); writeTrial(t); }
+    },
+    /* test/dev hook: simulate time passing + a fresh browser session */
+    _age: function (ms) {
+      memorySession = false;
+      try { sessionStorage.removeItem(TRIAL_SESSION_KEY); } catch (e) { /* ignore */ }
+      var t = readTrial();
+      if (t) { t.lastActive -= ms; writeTrial(t); }
+    },
+    _reset: function () {
+      memoryTrial = null; memorySession = false; this.active = false;
+      try { localStorage.removeItem(TRIAL_KEY); } catch (e) { /* ignore */ }
+      try { sessionStorage.removeItem(TRIAL_SESSION_KEY); } catch (e) { /* ignore */ }
+    }
+  };
 
   /* ---------- Sanitize products loaded from storage ---------- */
   function num(v, fallback) {
@@ -3040,10 +3159,11 @@ th.num, td.num { text-align: right; }
   global.PL_STORE = Store;
   global.PL_CSV = CSV;
   global.PL_PLAN = Plan;
+  global.PL_TRIAL = Trial;
 
   /* Node.js export (used by the automated tests) */
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV, Plan: Plan };
+    module.exports = { Store: Store, SAMPLE_PRODUCTS: SAMPLE_PRODUCTS, CSV: CSV, Plan: Plan, Trial: Trial };
   }
 
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -4182,6 +4302,7 @@ th.num, td.num { text-align: right; }
   var Plan = window.PL_PLAN;
   var Report = window.PL_REPORT;
   var License = window.PL_LICENSE; // paid license layer (v1.8)
+  var Trial = window.PL_TRIAL;     // one-session free trial gate (v1.9)
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -4265,6 +4386,12 @@ th.num, td.num { text-align: right; }
   function render() {
     var route = parseRoute();
     var isLanding = route.page === 'landing';
+
+    if (Trial) Trial.heartbeat();
+
+    /* one-session free trial: app pages require an active session or a license */
+    if (!isLanding && trialGateEngaged()) { showTrialPaywall(); return; }
+    hideTrialPaywall();
 
     $('#view-landing').hidden = !isLanding;
     $('#view-app').hidden = isLanding;
@@ -5457,7 +5584,7 @@ th.num, td.num { text-align: right; }
     var pro = Plan.isPro();
 
     var freeFeats = [
-      ['check', 'Up to 3 products'],
+      ['check', 'One full free session (up to 3 products)'],
       ['check', 'True profit calculator \u2014 every cost counted'],
       ['check', 'Basic profit diagnosis \u2014 biggest leak + action'],
       ['check', 'Dashboard, product table & status filters'],
@@ -5519,7 +5646,7 @@ th.num, td.num { text-align: right; }
         '<div class="price-card">' +
           '<div class="price-name">FREE</div>' +
           '<div class="price-value">$0</div>' +
-          '<p class="price-tag">For getting started</p>' +
+          '<p class="price-tag">Your first session \u2014 free</p>' +
           featList(freeFeats) +
           '<div class="price-actions">' + freeBtn + '</div>' +
         '</div>' +
@@ -5549,6 +5676,69 @@ th.num, td.num { text-align: right; }
       btn.disabled = false;
       btn.textContent = 'Activate';
       if (r.ok) {
+        toast('Pro activated \u2014 welcome aboard, and thank you! \uD83C\uDF89');
+        render();
+      } else {
+        if (err) { err.textContent = r.reason; err.hidden = false; }
+        input.focus();
+      }
+    });
+  }
+
+  /* =============================================================
+     FREE-TRIAL PAYWALL (v1.9)
+     Shown when the one free session is over and no license is
+     active. Offers the buy link + instant license activation.
+     ============================================================= */
+  function trialGateEngaged() {
+    return !!(Trial && License && License.isConfigured() && Trial.isLocked());
+  }
+
+  function showTrialPaywall() {
+    var ov = $('#trial-overlay');
+    if (!ov) return;
+    var buy = $('#trial-buy');
+    if (buy && License && License.buyUrl) buy.href = License.buyUrl();
+    var n = state.products.length;
+    $('#trial-text').textContent = n > 0
+      ? 'You explored ProfitLeak AI with your free session. Your ' + n +
+        (n === 1 ? ' product' : ' products') + ' and every calculation are saved in this browser \u2014 ready the moment you activate Pro.'
+      : 'You explored ProfitLeak AI with your free session. Activate Pro to keep analyzing your true profit \u2014 every feature, unlimited products, lifetime license.';
+    ov.hidden = false;
+    document.body.classList.add('modal-open');
+    var wo = $('#welcome-overlay');
+    if (wo) wo.hidden = true;
+  }
+
+  function hideTrialPaywall() {
+    var ov = $('#trial-overlay');
+    if (!ov || ov.hidden) return;
+    ov.hidden = true;
+    var anyOpen = ['#modal-overlay', '#import-overlay', '#welcome-overlay'].some(function (s) {
+      var el = $(s); return el && !el.hidden;
+    });
+    if (!anyOpen) document.body.classList.remove('modal-open');
+  }
+
+  function trialActivateFlow() {
+    var input = $('#trial-license-input');
+    var btn = $('#trial-activate-btn');
+    var err = $('#trial-license-error');
+    if (!input || !btn || !License || !License.isConfigured()) return;
+    if (err) { err.hidden = true; }
+    var key = input.value.trim();
+    if (!key) {
+      if (err) { err.textContent = 'Paste the license key from your purchase email first.'; err.hidden = false; }
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Verifying\u2026';
+    License.activate(key).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = 'Activate';
+      if (r.ok) {
+        if (Trial) Trial.evaluate(); /* licensed users are never gated */
         toast('Pro activated \u2014 welcome aboard, and thank you! \uD83C\uDF89');
         render();
       } else {
@@ -5678,6 +5868,7 @@ th.num, td.num { text-align: right; }
      GLOBAL EVENTS (delegation)
      ============================================================= */
   function onGlobalClick(e) {
+    if (Trial) Trial.heartbeat();
     /* plain-language metric help (works on touch + desktop) */
     var helpEl = e.target.closest ? e.target.closest('[data-help]') : null;
     if (helpEl) {
@@ -5753,6 +5944,7 @@ th.num, td.num { text-align: right; }
      FIRST-TIME WELCOME
      ============================================================= */
   function maybeShowWelcome() {
+    if (trialGateEngaged()) return; /* the paywall replaces the welcome for locked visitors */
     if (Store.isOnboarded() || state.products.length) {
       if (!Store.isOnboarded()) Store.markOnboarded(); // returning user with data: skip
       return;
@@ -5809,8 +6001,12 @@ th.num, td.num { text-align: right; }
       });
     }
 
+    /* one-session free trial (v1.9) */
+    if (Trial) Trial.evaluate();
+
     $('#product-form').addEventListener('submit', onFormSubmit);
     $('#product-form').addEventListener('input', function (e) {
+      if (Trial) Trial.heartbeat();
       var field = e.target.closest('.field');
       if (field && field.classList.contains('has-error')) {
         field.classList.remove('has-error');
@@ -5831,6 +6027,14 @@ th.num, td.num { text-align: right; }
     $('#import-overlay').addEventListener('click', function (e) {
       if (e.target === e.currentTarget) closeImportPreview();
     });
+
+    var trialActivateBtn = $('#trial-activate-btn');
+    if (trialActivateBtn) {
+      trialActivateBtn.addEventListener('click', trialActivateFlow);
+      $('#trial-license-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') trialActivateFlow();
+      });
+    }
 
     document.addEventListener('click', onGlobalClick);
     document.addEventListener('keydown', onGlobalKeydown);
