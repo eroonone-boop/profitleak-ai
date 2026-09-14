@@ -2251,6 +2251,9 @@ th.num, td.num { text-align: right; }
 .trial-card .pay-opts a { color: #fff; background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.28); }
 .trial-card .pay-opts a:hover { border-color: #f5c93c; background: rgba(255,255,255,.13); }
 
+/* email signup for bonus sessions (v1.11) */
+.trial-email { border-top: 1.5px dashed var(--border); padding-top: 16px; margin-bottom: 14px; }
+
 </style>
 </head>
 <body>
@@ -2695,6 +2698,14 @@ th.num, td.num { text-align: right; }
       </div>
       <div class="license-error" id="trial-license-error" hidden></div>
     </div>
+    <div class="trial-email">
+      <div class="license-title">Not ready to buy? Get <b>2 more free sessions</b></div>
+      <div class="license-row">
+        <input id="trial-email-input" type="email" placeholder="Your email &mdash; we&rsquo;ll send profit tips" aria-label="Email address" autocomplete="off">
+        <button class="btn btn-primary btn-sm" type="button" id="trial-email-btn">Send</button>
+      </div>
+      <div class="license-error" id="trial-email-error" hidden></div>
+    </div>
     <p class="trial-safe">Your data stays in this browser &mdash; everything will be waiting for you right after activation.</p>
   </div>
 </div>
@@ -2888,13 +2899,32 @@ th.num, td.num { text-align: right; }
         t.lastActive = now; writeTrial(t); markSession();
         this.active = true; return true;
       }
-      this.active = false; return false;        /* the one free session is over */
+      if (t.extraSessions > 0) {                /* email reward (v1.11): consume one bonus session */
+        t.extraSessions -= 1;
+        t.lastActive = now;
+        writeTrial(t); markSession();
+        this.active = true; return true;
+      }
+      this.active = false; return false;        /* the free sessions are over */
     },
     isLocked: function () { return !Plan.isPro() && !this.active; },
     heartbeat: function () {
       if (this.isLocked()) return;
       var t = readTrial();
       if (t && t.startedAt) { t.lastActive = Date.now(); writeTrial(t); }
+    },
+    /* email signup (v1.11): grant bonus sessions and open one now */
+    grantEmailSessions: function (email, n) {
+      var t = readTrial() || {};
+      t.email = email;
+      t.extraSessions = (t.extraSessions || 0) + (n || 0);
+      if (!t.startedAt) t.startedAt = Date.now();
+      writeTrial(t);
+      return this.evaluate();
+    },
+    getEmail: function () {
+      var t = readTrial();
+      return (t && t.email) || '';
     },
     /* test/dev hook: simulate time passing + a fresh browser session */
     _age: function (ms) {
@@ -4350,6 +4380,7 @@ th.num, td.num { text-align: right; }
   var License = window.PL_LICENSE; // paid license layer (v1.8)
   var Trial = window.PL_TRIAL;     // one-session free trial gate (v1.9)
   var CHECKOUT = 'https://profitleak.netlify.app/.netlify/functions/checkout-start?method='; // on-site checkout (v1.10)
+  var EMAIL_EP = 'https://profitleak.netlify.app/.netlify/functions/email-signup'; // bonus-sessions signup (v1.11)
 
   /* ---------------- tiny helpers ---------------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -4434,10 +4465,11 @@ th.num, td.num { text-align: right; }
     var route = parseRoute();
     var isLanding = route.page === 'landing';
 
+    /* one-session free trial: the gate re-evaluates the session FIRST
+       (it may have ended since the last render); only then refresh it */
+    var gated = !isLanding && trialGateEngaged();
+    if (gated) { showTrialPaywall(); return; }
     if (Trial) Trial.heartbeat();
-
-    /* one-session free trial: app pages require an active session or a license */
-    if (!isLanding && trialGateEngaged()) { showTrialPaywall(); return; }
     hideTrialPaywall();
 
     $('#view-landing').hidden = !isLanding;
@@ -5742,7 +5774,9 @@ th.num, td.num { text-align: right; }
      active. Offers the buy link + instant license activation.
      ============================================================= */
   function trialGateEngaged() {
-    return !!(Trial && License && License.isConfigured() && Trial.isLocked());
+    if (!Trial || !License || !License.isConfigured()) return false;
+    Trial.evaluate(); /* refresh: the session may have ended since the last render */
+    return Trial.isLocked();
   }
 
   function showTrialPaywall() {
@@ -5772,6 +5806,42 @@ th.num, td.num { text-align: right; }
       var el = $(s); return el && !el.hidden;
     });
     if (!anyOpen) document.body.classList.remove('modal-open');
+  }
+
+  /* email signup: 2 extra free sessions (v1.11) */
+  function trialEmailFlow() {
+    var input = $('#trial-email-input');
+    var btn = $('#trial-email-btn');
+    var err = $('#trial-email-error');
+    if (!input || !btn) return;
+    if (err) { err.hidden = true; }
+    var email = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      if (err) { err.textContent = 'Please enter a valid email address.'; err.hidden = false; }
+      input.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '\u2026';
+    fetch(EMAIL_EP, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+      if (d && d.success && Trial) {
+        Trial.grantEmailSessions(email, d.extraSessions || 2);
+        toast('2 extra free sessions unlocked \u2713');
+        render();
+      } else {
+        if (err) { err.textContent = (d && d.reason) || 'Something went wrong \u2014 please try again.'; err.hidden = false; }
+      }
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+      if (err) { err.textContent = 'Connection problem \u2014 please try again.'; err.hidden = false; }
+    });
   }
 
   function trialActivateFlow() {
@@ -6087,6 +6157,13 @@ th.num, td.num { text-align: right; }
       trialActivateBtn.addEventListener('click', trialActivateFlow);
       $('#trial-license-input').addEventListener('keydown', function (e) {
         if (e.key === 'Enter') trialActivateFlow();
+      });
+    }
+    var trialEmailBtn = $('#trial-email-btn');
+    if (trialEmailBtn) {
+      trialEmailBtn.addEventListener('click', trialEmailFlow);
+      $('#trial-email-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') trialEmailFlow();
       });
     }
 

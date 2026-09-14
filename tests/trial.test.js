@@ -85,6 +85,21 @@ async function main() {
     Plan.setLicenseActive(false);
     assert.ok(Trial.isLocked()); /* back to locked once the license is gone */
   });
+  test('email signup grants 2 bonus sessions (one opens now)', () => {
+    assert.ok(Trial.grantEmailSessions('seller@example.com', 2));
+    assert.ok(!Trial.isLocked());
+    assert.equal(Trial.getEmail(), 'seller@example.com');
+  });
+  test('second bonus session consumed after the next break', () => {
+    Trial._age(GRACE + 60 * 1000);
+    assert.ok(Trial.evaluate());
+    assert.ok(!Trial.isLocked());
+  });
+  test('after both bonuses: locked for good', () => {
+    Trial._age(GRACE + 60 * 1000);
+    assert.ok(!Trial.evaluate());
+    assert.ok(Trial.isLocked());
+  });
 
   console.log('\n\u2500\u2500 2. App journey: the paywall in the real build \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
@@ -151,6 +166,53 @@ async function main() {
   test('navigating back to an app page re-shows the paywall', () => {
     assert.ok(!d2.querySelector('#trial-overlay').hidden);
   });
+
+
+  /* --- email signup journey (fresh browser, same locked state) --- */
+  const dom2c = await bootApp(gumroadOk, oldTrial);
+  const w2c = dom2c.window, d2c = w2c.document;
+  w2c.location.hash = '#/dashboard'; await tick(90);
+  test('paywall shows the email box (2 extra sessions offer)', () => {
+    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+    assert.ok(d2c.querySelector('#trial-email-input'));
+    assert.ok(d2c.querySelector('#trial-email-btn'));
+  });
+  w2c.fetch = (url, opts) => {
+    if (String(url).includes('email-signup')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, extraSessions: 2 }) });
+    }
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ success: false }) });
+  };
+  d2c.querySelector('#trial-email-input').value = 'not-an-email';
+  d2c.querySelector('#trial-email-btn').click(); await tick(120);
+  test('invalid email: inline error, still locked', () => {
+    assert.ok(!d2c.querySelector('#trial-email-error').hidden);
+    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+  });
+  d2c.querySelector('#trial-email-input').value = 'buyer@example.com';
+  d2c.querySelector('#trial-email-btn').click(); await tick(180);
+  test('valid email: 2 sessions granted, paywall closes, dashboard opens', () => {
+    assert.ok(d2c.querySelector('#trial-overlay').hidden);
+    assert.ok(!d2c.querySelector('#page-dashboard').hidden);
+  });
+  w2c.PL_TRIAL._age(7200e3);
+  w2c.location.hash = '#/pricing'; await tick(90);
+  test('second bonus session opens after the next break', () => {
+    assert.ok(d2c.querySelector('#trial-overlay').hidden);
+  });
+  w2c.PL_TRIAL._age(7200e3);
+  w2c.location.hash = '#/dashboard'; await tick(90);
+  test('after both bonus sessions: paywall again (buy-only)', () => {
+    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+  });
+  w2c.fetch = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: false, reason: 'This email already received its extra sessions.' }) });
+  d2c.querySelector('#trial-email-input').value = 'buyer@example.com';
+  d2c.querySelector('#trial-email-btn').click(); await tick(180);
+  test('reused email: rejected with a clear reason', () => {
+    assert.ok(!d2c.querySelector('#trial-email-error').hidden);
+    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+  });
+  dom2c.window.close();
 
   /* --- activation from the paywall --- */
   w2.fetch = gumroadBad;

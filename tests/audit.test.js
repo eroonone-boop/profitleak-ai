@@ -1002,7 +1002,8 @@ test('SECURITY: network calls limited to the two license-verify endpoints (v1.10
   SRC_FILES.forEach(f => {
     const rest = f.text
       .split("fetch('https://api.gumroad.com/v2/licenses/verify'").join('LICENSE-VERIFY-GUMROAD')
-      .split("fetch(SITE_VERIFY_URL").join('LICENSE-VERIFY-SITE');
+      .split("fetch(SITE_VERIFY_URL").join('LICENSE-VERIFY-SITE')
+      .split("fetch(EMAIL_EP").join('EMAIL-SIGNUP');
     ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
       assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
   });
@@ -1017,6 +1018,7 @@ test('SECURITY: the only outbound URLs in the source are the known allow-list (v
       .split('https://mohamedramli.gumroad.com').join('') // earlier listing (still sold)
       .split('https://profitleak.netlify.app/.netlify/functions/license-verify').join('') // our on-site license endpoint (v1.10)
       .split('https://profitleak.netlify.app/.netlify/functions/checkout-start').join('') // our on-site checkout (v1.10)
+      .split('https://profitleak.netlify.app/.netlify/functions/email-signup').join('') // bonus-sessions signup (v1.11)
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
     assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');

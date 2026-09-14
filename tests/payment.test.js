@@ -88,6 +88,29 @@ async function main() {
     const m = String((e && e.message) || e);
     if (!/^Not implemented:/i.test(m)) pageErrors.push(m);
   });
+
+  /* auto-activation (v1.11): the checkout return page writes the license
+     straight into localStorage — the app must boot into Pro with no key entry. */
+  const domAuto = new JSDOM(STANDALONE, {
+    runScripts: 'dangerously', pretendToBeVisual: true,
+    url: 'https://profitleak.example/', virtualConsole: vc,
+    beforeParse(window) {
+      window.fetch = () => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ success: false }) });
+      window.localStorage.setItem('profitleak.license.v1',
+        JSON.stringify({ key: SITE_KEY, email: 'site-checkout', activatedAt: new Date().toISOString() }));
+      window.localStorage.setItem('profitleak.trial.v1',
+        JSON.stringify({ startedAt: Date.now() - 7200e3, lastActive: Date.now() - 7200e3 }));
+    }
+  });
+  await tick(300);
+  const wAuto = domAuto.window, dAuto = wAuto.document;
+  wAuto.location.hash = '#/dashboard'; await tick(90);
+  test('v1.11 auto-activation: stored PL- license boots straight into Pro (no key entry)', () => {
+    assert.ok(dAuto.querySelector('#plan-nav .pro-badge'));
+    assert.ok(dAuto.querySelector('#trial-overlay').hidden);
+  });
+  domAuto.window.close();
+
   const dom = new JSDOM(STANDALONE, {
     runScripts: 'dangerously', pretendToBeVisual: true,
     url: 'https://profitleak.example/', virtualConsole: vc,
