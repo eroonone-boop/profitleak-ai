@@ -107,6 +107,11 @@ async function main() {
     assert.ok(!Trial.evaluate());
     assert.ok(Trial.isLocked());
   });
+  test('v1.20: once locked, repeated evaluate() stays locked (permanent done flag)', () => {
+    assert.ok(!Trial.evaluate());
+    assert.ok(!Trial.evaluate());
+    assert.ok(!Trial.isLocked() === false);
+  });
 
   console.log('\n\u2500\u2500 2. App journey: the paywall in the real build \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
@@ -217,6 +222,17 @@ async function main() {
     assert.ok(d2c.querySelector('.trial-email').hidden);
     assert.ok(d2c.querySelector('#trial-license-input')); /* license path still there */
     assert.ok(d2c.body.textContent.includes('You have used your free session and your 2 bonus sessions'));
+  });
+  d2c.querySelector('[data-action="clear-all"]').click(); await tick(80);
+  d2c.querySelector('#modal-confirm').click(); await tick(120);
+  test('v1.20: Clear All on a locked visitor → payment popup pops, no free attempts back', () => {
+    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+    const rec = JSON.parse(w2c.localStorage.getItem('profitleak.trial.v1'));
+    assert.ok(rec.done === true);              /* the lock is recorded permanently */
+    assert.equal(rec.email, 'buyer@example.com'); /* the trial record itself is untouched */
+  });
+  test('v1.20: even a page refresh (live session marker) cannot revive the free time', () => {
+    assert.ok(!w2c.PL_TRIAL.evaluate());
   });
   dom2c.window.close();
 
