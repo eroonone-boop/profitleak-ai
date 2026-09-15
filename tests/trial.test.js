@@ -165,9 +165,10 @@ async function main() {
     assert.ok(d2.querySelector('#trial-activate-btn'));
   });
   w2.location.hash = '#/'; await tick(80);
-  test('landing page stays visible for a locked visitor (marketing)', () => {
-    assert.ok(d2.querySelector('#trial-overlay').hidden);
+  test('landing visible AND the email popup shows on it (v1.17)', () => {
     assert.ok(!d2.querySelector('#view-landing').hidden);
+    assert.ok(!d2.querySelector('#trial-overlay').hidden);
+    assert.ok(!d2.querySelector('.trial-email').hidden); /* the email offer is right there */
   });
   w2.location.hash = '#/dashboard'; await tick(80);
   test('navigating back to an app page re-shows the paywall', () => {
