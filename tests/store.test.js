@@ -49,7 +49,7 @@ function mockStore(product, order, orders) {
     const u = String(url);
     const res = (obj) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(obj) });
     if (u.includes('store-data')) {
-      if (u.includes('S-TEST1')) return res({ success: true, type: 'store', products: [{ code: 'P-TEST01', name: 'Wireless Earbuds', price: 49.99 }] });
+      if (u.includes('S-TEST1')) return res({ success: true, type: 'store', name: 'Test Store', products: [{ code: 'P-TEST01', name: 'Wireless Earbuds', price: 49.99 }] });
       return res(product);
     }
     if (u.includes('store-orders')) return res({ success: true, orders: orders !== undefined ? orders : [{ oc: 'O-1', lc: 'P-TEST01', p: 'Wireless Earbuds', name: 'Ali', qty: 2, price: 49.99, ph: '212611111111', at: '2026-09-14T12:00:00.000Z' }] });
@@ -166,6 +166,34 @@ async function main() {
   d.getElementById('wa-save').click(); await tick(250);
   test('changing the WhatsApp number updates every order page', () => {
     assert.ok(sellerFetch.manage.some(c => c && c.action === 'wa' && c.whatsapp === '212622222222'));
+  });
+  test('store box has view/edit/delete controls', () => {
+    assert.ok(d.getElementById('wa-store-copy'));
+    assert.ok(d.getElementById('wa-store-edit'));
+    assert.ok(d.getElementById('wa-store-del'));
+  });
+  d.getElementById('wa-store-edit').click(); await tick(200);
+  test('store gear opens a name editor with the live name', () => {
+    assert.ok(d.getElementById('wa-s-name'));
+    assert.equal(d.getElementById('wa-s-name').value, 'Test Store');
+  });
+  d.getElementById('wa-s-name').value = 'My Shop';
+  d.getElementById('wa-s-save').click(); await tick(250);
+  test('saving the store name updates the server + the box hint', () => {
+    assert.ok(sellerFetch.manage.some(c => c && c.action === 'store-update' && c.name === 'My Shop'));
+    assert.ok(d.body.textContent.includes('My Shop'));
+    const wa = JSON.parse(w.localStorage.getItem('profitleak.wa.v1'));
+    assert.equal(wa.storeName, 'My Shop');
+  });
+  d.getElementById('wa-store-del').click(); await tick(80);
+  d.getElementById('modal-confirm').click(); await tick(250);
+  test('deleting the store removes the link and keeps products', () => {
+    assert.ok(sellerFetch.manage.some(c => c && c.action === 'store-delete'));
+    const wa = JSON.parse(w.localStorage.getItem('profitleak.wa.v1'));
+    assert.ok(!wa.store);
+    assert.ok(!d.getElementById('wa-store-copy'));
+    assert.ok(d.body.textContent.includes('order link and your store link appears'));
+    assert.ok(d.body.textContent.includes('Wireless Earbuds')); /* the product row is untouched */
   });
   d.querySelector('[data-wa-edit]').click(); await tick(80);
   d.getElementById('wa-e-unlink').click(); await tick(80);
