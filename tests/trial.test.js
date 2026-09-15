@@ -47,7 +47,7 @@ const gumroadOk = () => Promise.resolve({ ok: true, status: 200, json: () => Pro
 const gumroadBad = () => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ success: false }) });
 const KEY = '85DB562A-C11D4B06-A2335A6B-8C079166';
 
-const GRACE = 30 * 60 * 1000;
+const GRACE = 60 * 1000; /* v1.16: one minute — closing the site ends the free attempt */
 
 async function main() {
   console.log('\nProfitLeak AI \u2014 one-session free trial tests\n');
@@ -62,12 +62,19 @@ async function main() {
     assert.ok(Trial.evaluate());
     assert.ok(!Trial.isLocked());
   });
-  test('back within the 30-minute window: session resumes', () => {
+  test('back within the minute (refresh / second tab): session resumes', () => {
+    Trial._reset();
+    Trial.evaluate();
+    Trial._age(30 * 1000); /* 30 seconds away, fresh browser session */
+    assert.ok(Trial.evaluate());
+    assert.ok(!Trial.isLocked());
+  });
+  test('5 minutes away: the free attempt is OVER (v1.16)', () => {
     Trial._reset();
     Trial.evaluate();
     Trial._age(5 * 60 * 1000); /* 5 minutes away, fresh browser session */
-    assert.ok(Trial.evaluate());
-    assert.ok(!Trial.isLocked());
+    assert.ok(!Trial.evaluate());
+    assert.ok(Trial.isLocked());
   });
   test('second session after the window: LOCKED', () => {
     Trial._age(GRACE + 60 * 1000); /* 31 minutes away */
@@ -205,12 +212,10 @@ async function main() {
   test('after both bonus sessions: paywall again (buy-only)', () => {
     assert.ok(!d2c.querySelector('#trial-overlay').hidden);
   });
-  w2c.fetch = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: false, reason: 'This email already received its extra sessions.' }) });
-  d2c.querySelector('#trial-email-input').value = 'buyer@example.com';
-  d2c.querySelector('#trial-email-btn').click(); await tick(180);
-  test('reused email: rejected with a clear reason', () => {
-    assert.ok(!d2c.querySelector('#trial-email-error').hidden);
-    assert.ok(!d2c.querySelector('#trial-overlay').hidden);
+  test('buy-only paywall: the email box is GONE (v1.16)', () => {
+    assert.ok(d2c.querySelector('.trial-email').hidden);
+    assert.ok(d2c.querySelector('#trial-license-input')); /* license path still there */
+    assert.ok(d2c.body.textContent.includes('You have used your free session and your 2 bonus sessions'));
   });
   dom2c.window.close();
 
