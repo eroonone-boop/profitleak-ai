@@ -1003,7 +1003,11 @@ test('SECURITY: network calls limited to the two license-verify endpoints (v1.10
     const rest = f.text
       .split("fetch('https://api.gumroad.com/v2/licenses/verify'").join('LICENSE-VERIFY-GUMROAD')
       .split("fetch(SITE_VERIFY_URL").join('LICENSE-VERIFY-SITE')
-      .split("fetch(EMAIL_EP").join('EMAIL-SIGNUP');
+      .split("fetch(EMAIL_EP").join('EMAIL-SIGNUP')
+      .split("fetch(STORE_CREATE_EP").join('STORE-CREATE')
+      .split("fetch(STORE_DATA_EP").join('STORE-DATA')
+      .split("fetch(STORE_ORDER_EP").join('STORE-ORDER')
+      .split("fetch(STORE_ORDERS_EP").join('STORE-ORDERS');
     ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
       assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
   });
@@ -1019,6 +1023,12 @@ test('SECURITY: the only outbound URLs in the source are the known allow-list (v
       .split('https://profitleak.netlify.app/.netlify/functions/license-verify').join('') // our on-site license endpoint (v1.10)
       .split('https://profitleak.netlify.app/.netlify/functions/checkout-start').join('') // our on-site checkout (v1.10)
       .split('https://profitleak.netlify.app/.netlify/functions/email-signup').join('') // bonus-sessions signup (v1.11)
+      .split('https://profitleak.netlify.app/.netlify/functions/store-create').join('') // WhatsApp store (v1.12)
+      .split('https://profitleak.netlify.app/.netlify/functions/store-data').join('')
+      .split('https://profitleak.netlify.app/.netlify/functions/store-order').join('')
+      .split('https://profitleak.netlify.app/.netlify/functions/store-orders').join('')
+      .split('https://profitleak.netlify.app').join('') // our own site (public links, v1.12)
+      .split('https://wa.me').join('') // WhatsApp deep link opens the seller's chat
       .split('http://www.w3.org').join('')
       .split('https://www.w3.org').join('');
     assert.equal(rest.indexOf('https://'), -1, f.name + ' contains a foreign https URL');
