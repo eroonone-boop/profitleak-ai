@@ -47,7 +47,7 @@ const gumroadOk = () => Promise.resolve({ ok: true, status: 200, json: () => Pro
 const gumroadBad = () => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ success: false }) });
 const KEY = '85DB562A-C11D4B06-A2335A6B-8C079166';
 
-const GRACE = 60 * 1000; /* v1.16: one minute — closing the site ends the free attempt */
+const GAP = 60 * 1000; /* any gap between visits (v1.18: EVERY reopen ends the sitting) */
 
 async function main() {
   console.log('\nProfitLeak AI \u2014 one-session free trial tests\n');
@@ -62,12 +62,12 @@ async function main() {
     assert.ok(Trial.evaluate());
     assert.ok(!Trial.isLocked());
   });
-  test('back within the minute (refresh / second tab): session resumes', () => {
+  test('reopened after just 8 seconds: the attempt is OVER (v1.18)', () => {
     Trial._reset();
     Trial.evaluate();
-    Trial._age(30 * 1000); /* 30 seconds away, fresh browser session */
-    assert.ok(Trial.evaluate());
-    assert.ok(!Trial.isLocked());
+    Trial._age(8 * 1000); /* closed the tab, reopened 8 seconds later */
+    assert.ok(!Trial.evaluate());
+    assert.ok(Trial.isLocked());
   });
   test('5 minutes away: the free attempt is OVER (v1.16)', () => {
     Trial._reset();
@@ -77,7 +77,7 @@ async function main() {
     assert.ok(Trial.isLocked());
   });
   test('second session after the window: LOCKED', () => {
-    Trial._age(GRACE + 60 * 1000); /* 31 minutes away */
+    Trial._age(GAP + 60 * 1000); /* a few minutes away, fresh browser session */
     assert.ok(!Trial.evaluate());
     assert.ok(Trial.isLocked());
   });
@@ -98,12 +98,12 @@ async function main() {
     assert.equal(Trial.getEmail(), 'seller@example.com');
   });
   test('second bonus session consumed after the next break', () => {
-    Trial._age(GRACE + 60 * 1000);
+    Trial._age(GAP + 60 * 1000);
     assert.ok(Trial.evaluate());
     assert.ok(!Trial.isLocked());
   });
   test('after both bonuses: locked for good', () => {
-    Trial._age(GRACE + 60 * 1000);
+    Trial._age(GAP + 60 * 1000);
     assert.ok(!Trial.evaluate());
     assert.ok(Trial.isLocked());
   });
@@ -220,6 +220,35 @@ async function main() {
   });
   dom2c.window.close();
 
+  /* --- v1.18: the 20-minute cap ends the sitting even with the tab open --- */
+  const domCap = await bootApp(gumroadOk);
+  const wCap = domCap.window, dCap = wCap.document;
+  wCap.location.hash = '#/dashboard'; await tick(90);
+  const rec = JSON.parse(wCap.localStorage.getItem('profitleak.trial.v1'));
+  rec.startedAt = Date.now() - 21 * 60 * 1000; /* 21 minutes inside the same open tab */
+  wCap.localStorage.setItem('profitleak.trial.v1', JSON.stringify(rec));
+  wCap.location.hash = '#/pricing'; await tick(90);
+  test('20-minute cap: popup shows even though the tab stayed open', () => {
+    assert.ok(!dCap.querySelector('#trial-overlay').hidden);
+    assert.ok(!dCap.querySelector('.trial-email').hidden); /* the email offer is there */
+  });
+  wCap.fetch = (url) => {
+    if (String(url).includes('email-signup')) return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ success: true, extraSessions: 2 }) });
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+  };
+  dCap.querySelector('#trial-email-input').value = 'cap@example.com';
+  dCap.querySelector('#trial-email-btn').click(); await tick(200);
+  const rec2 = JSON.parse(wCap.localStorage.getItem('profitleak.trial.v1'));
+  rec2.startedAt = Date.now() - 21 * 60 * 1000; /* cap again, one bonus still left */
+  wCap.localStorage.setItem('profitleak.trial.v1', JSON.stringify(rec2));
+  wCap.location.hash = '#/dashboard'; await tick(90);
+  test('cap with a bonus left: the next bonus sitting starts seamlessly', () => {
+    assert.ok(dCap.querySelector('#trial-overlay').hidden);
+    const rec3 = JSON.parse(wCap.localStorage.getItem('profitleak.trial.v1'));
+    assert.equal(rec3.extraSessions, 0); /* 2 granted, 1 opened at signup, 1 at the cap */
+  });
+  domCap.window.close();
+
   /* --- activation from the paywall --- */
   w2.fetch = gumroadBad;
   d2.querySelector('#trial-license-input').value = 'WRONG-KEY';
@@ -254,15 +283,15 @@ async function main() {
   });
   dom3.window.close();
 
-  /* --- same tab still open after hours: session continues --- */
+  /* --- same tab still open (within the 20-minute cap): session continues --- */
   const dom4 = await bootApp(gumroadOk,
     'localStorage.setItem("profitleak.trial.v1", ' +
-    JSON.stringify(JSON.stringify({ startedAt: Date.now() - 7200e3, lastActive: Date.now() - 7200e3 })) + ');' +
+    JSON.stringify(JSON.stringify({ startedAt: Date.now() - 10 * 60 * 1000, lastActive: Date.now() - 10 * 60 * 1000 })) + ');' +
     'localStorage.setItem("profitleak.onboarded.v1", "1");' +
     'sessionStorage.setItem("profitleak.trial.session.v1", "1");');
   const w4 = dom4.window, d4 = w4.document;
   w4.location.hash = '#/dashboard'; await tick(90);
-  test('tab still open (session marker alive): session continues, no paywall', () => {
+  test('tab still open, within the 20-minute cap: session continues, no paywall', () => {
     assert.ok(d4.querySelector('#trial-overlay').hidden);
     assert.ok(!d4.querySelector('#page-dashboard').hidden);
   });
