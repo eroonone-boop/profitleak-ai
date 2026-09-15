@@ -102,7 +102,7 @@ async function main() {
   const sellerFetch = mockStore();
   const dom2 = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true,
     url: 'https://profitleak.example/', virtualConsole: vc,
-    beforeParse(w) { w.fetch = sellerFetch; w.confirm = function () { return true; }; } });
+    beforeParse(w) { w.fetch = sellerFetch; } });
   await tick(300);
   const w = dom2.window, d = w.document;
   w.location.hash = '#/orders'; await tick(150);
@@ -158,12 +158,51 @@ async function main() {
     assert.equal(p2.sellingPrice, 59.99);
     assert.ok(!d.querySelector('.wa-edit-row'));
   });
-  d.querySelector('[data-wa-del]').click(); await tick(250);
-  test('delete icon removes the link (server + local)', () => {
+  test('products table is numbered and ordered', () => {
+    assert.ok(d.querySelector('.wa-num-cell'));
+    assert.equal(d.querySelector('.wa-num-cell').textContent.trim(), '1');
+  });
+  d.getElementById('wa-number').value = '+212 622 222 222';
+  d.getElementById('wa-save').click(); await tick(250);
+  test('changing the WhatsApp number updates every order page', () => {
+    assert.ok(sellerFetch.manage.some(c => c && c.action === 'wa' && c.whatsapp === '212622222222'));
+  });
+  d.querySelector('[data-wa-edit]').click(); await tick(80);
+  d.getElementById('wa-e-unlink').click(); await tick(80);
+  d.getElementById('modal-confirm').click(); await tick(250);
+  test('remove link only: link gone, product kept', () => {
     assert.ok(sellerFetch.manage.some(c => c && c.action === 'delete' && c.code === 'P-TEST01'));
     const wa = JSON.parse(w.localStorage.getItem('profitleak.wa.v1'));
     assert.ok(!wa.links || !wa.links[firstProduct.id]);
+    const products = JSON.parse(w.localStorage.getItem('profitleak.products.v1'));
+    assert.ok(products.some(x => x.id === firstProduct.id));
     assert.ok(d.querySelector('[data-wa-create]'));
+  });
+  d.querySelector('[data-wa-edit]').click(); await tick(80);
+  test('editor works on unlinked products too (no unlink button)', () => {
+    assert.ok(d.getElementById('wa-e-name'));
+    assert.ok(!d.getElementById('wa-e-unlink'));
+  });
+  d.getElementById('wa-e-name').value = 'Earbuds v3';
+  d.getElementById('wa-e-save').click(); await tick(250);
+  test('editing an unlinked product updates the app (no server call)', () => {
+    const products = JSON.parse(w.localStorage.getItem('profitleak.products.v1'));
+    assert.ok(products.some(x => x.id === firstProduct.id && x.name === 'Earbuds v3'));
+    assert.equal(sellerFetch.manage.filter(c => c && c.action === 'update').length, 1);
+  });
+  d.querySelector('[data-wa-del]').click(); await tick(80);
+  d.getElementById('modal-confirm').click(); await tick(250);
+  test('delete icon removes the product entirely', () => {
+    const products = JSON.parse(w.localStorage.getItem('profitleak.products.v1'));
+    assert.ok(!products.some(x => x.id === firstProduct.id));
+    assert.ok(d.body.textContent.includes('Add a product first'));
+  });
+  d.getElementById('wa-clear').click(); await tick(80);
+  d.getElementById('modal-confirm').click(); await tick(150);
+  test('trash in the WhatsApp box clears the saved number', () => {
+    const wa = JSON.parse(w.localStorage.getItem('profitleak.wa.v1'));
+    assert.ok(!wa.whatsapp);
+    assert.equal(d.getElementById('wa-number').value, '');
   });
   test('no unexpected page errors in the seller journey', () => {
     if (pageErrors.length) console.error('        page errors: ' + pageErrors.slice(0, 5).join(' | '));
