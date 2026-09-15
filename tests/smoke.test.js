@@ -184,18 +184,19 @@ async function main() {
   Object.defineProperty(fi, 'files', { value: [ff], configurable: true });
   fi.dispatchEvent(new w.Event('change', { bubbles: true }));
   await tick(200);
-  test('import preview opens but warns the free plan is full', () => {
-    assert.ok(!d.querySelector('#import-overlay').hidden);
-    assert.ok(d.querySelector('#import-body').textContent.includes('Free plan is full'));
+  test('free user: CSV import is blocked with the Pro upgrade dialog (v1.19)', () => {
+    assert.ok(d.querySelector('#import-overlay').hidden);
+    assert.ok(!d.querySelector('#modal-overlay').hidden);
+    assert.ok(d.querySelector('#modal-title').textContent.includes('Pro feature'));
   });
-  test('Import Products is disabled on a full free plan', () =>
-    assert.ok(d.getElementById('import-confirm').disabled));
-  test('preview offers an upgrade link to Pricing', () =>
-    assert.ok(d.querySelector('#import-body [data-close-import]')));
-  d.getElementById('import-cancel').click();
-  await tick(30);
-  test('closing the preview leaves the 3 products untouched', () =>
+  test('the blocked import leaves the 3 products untouched', () =>
     assert.equal(d.querySelectorAll('#table-wrap tbody tr').length, 3));
+  d.getElementById('modal-cancel').click();
+  await tick(30);
+  test('the blocked import closes cleanly (no overlay, no dialog)', () => {
+    assert.ok(d.querySelector('#import-overlay').hidden);
+    assert.ok(d.querySelector('#modal-overlay').hidden);
+  });
 
   /* ---- profit report (free user, 3 products) ---- */
   d.querySelector('#page-dashboard .page-actions a[href="#/report"]').click();
@@ -242,7 +243,13 @@ async function main() {
   w.print = function () { printed = true; };
   d.getElementById('report-print').click();
   await tick(30);
-  test('"Download Report" opens the print dialog (Save as PDF)', () => assert.ok(printed));
+  test('"Download Report" is Pro-only: upgrade dialog instead, nothing printed (v1.19)', () => {
+    assert.ok(!printed);
+    assert.ok(!d.querySelector('#modal-overlay').hidden);
+    assert.ok(d.querySelector('#modal-title').textContent.includes('Pro feature'));
+  });
+  d.getElementById('modal-cancel').click();
+  await tick(30);
   d.querySelector('.report-toolbar a[href="#/dashboard"]').click();
   await tick();
 

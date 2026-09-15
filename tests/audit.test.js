@@ -657,16 +657,15 @@ test('FREE LIMIT: 4th product blocked with upsell panel', () => {
   Object.defineProperty(fi, 'files', { value: [ff], configurable: true });
   fi.dispatchEvent(new w.Event('change', { bubbles: true }));
   await tick(80);
-  test('IMPORT (free, plan full): preview shows the cap notice', () => {
-    assert.ok(!d.querySelector('#import-overlay').hidden);
-    const t = d.querySelector('#import-body').textContent;
-    assert.ok(t.includes('Free plan is full'));
+  test('IMPORT (free): blocked with the Pro upgrade dialog (v1.19)', () => {
+    assert.ok(d.querySelector('#import-overlay').hidden);
+    assert.ok(!d.querySelector('#modal-overlay').hidden);
+    assert.ok(d.querySelector('#modal-title').textContent.includes('Pro feature'));
   });
-  test('IMPORT (free, plan full): confirm disabled \u2014 nothing imported', () => {
-    assert.ok(d.getElementById('import-confirm').disabled);
+  test('IMPORT (free): nothing imported, data safe', () => {
     assert.equal(storageProducts().length, 3);
   });
-  d.getElementById('import-cancel').click(); await tick(40);
+  d.getElementById('modal-cancel').click(); await tick(40);
 }
 
 /* ---- upgrade to Pro ---- */
@@ -1367,11 +1366,14 @@ test('CSV: quoted field with an embedded newline survives the parser', () => {
     Object.defineProperty(fi, 'files', { value: [ff], configurable: true });
     fi.dispatchEvent(new w3.Event('change', { bubbles: true }));
     await tick(80);
-    test('IMPORT: preview overlay opens for a valid file', () =>
-      assert.ok(!d3.querySelector('#import-overlay').hidden));
-    pressEsc(); await tick(30);
-    test('IMPORT: Escape closes the overlay — nothing imported', () => {
+    test('IMPORT (free window): blocked with the Pro dialog (v1.19)', () => {
       assert.ok(d3.querySelector('#import-overlay').hidden);
+      assert.ok(!d3.querySelector('#modal-overlay').hidden);
+      assert.ok(d3.querySelector('#modal-title').textContent.includes('Pro feature'));
+    });
+    pressEsc(); await tick(30);
+    test('IMPORT: Escape closes the dialog — nothing imported', () => {
+      assert.ok(d3.querySelector('#modal-overlay').hidden);
       assert.equal(storage3().length, 3);
     });
   }
