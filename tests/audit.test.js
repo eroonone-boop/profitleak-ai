@@ -1007,7 +1007,8 @@ test('SECURITY: network calls limited to the two license-verify endpoints (v1.10
       .split("fetch(STORE_CREATE_EP").join('STORE-CREATE')
       .split("fetch(STORE_DATA_EP").join('STORE-DATA')
       .split("fetch(STORE_ORDER_EP").join('STORE-ORDER')
-      .split("fetch(STORE_ORDERS_EP").join('STORE-ORDERS');
+      .split("fetch(STORE_ORDERS_EP").join('STORE-ORDERS')
+      .split("fetch(STORE_MANAGE_EP").join('STORE-MANAGE');
     ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
       assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
   });
@@ -1027,6 +1028,7 @@ test('SECURITY: the only outbound URLs in the source are the known allow-list (v
       .split('https://profitleak.netlify.app/.netlify/functions/store-data').join('')
       .split('https://profitleak.netlify.app/.netlify/functions/store-order').join('')
       .split('https://profitleak.netlify.app/.netlify/functions/store-orders').join('')
+      .split('https://profitleak.netlify.app/.netlify/functions/store-manage').join('') // link edit/delete (v1.13)
       .split('https://profitleak.netlify.app').join('') // our own site (public links, v1.12)
       .split('https://wa.me').join('') // WhatsApp deep link opens the seller's chat
       .split('http://www.w3.org').join('')
@@ -1041,8 +1043,12 @@ test('SECURITY: no eval / new Function / dynamic code execution', () => {
 test('SECURITY: no external URLs loaded (CDN/fonts/scripts/images)', () => {
   SRC_FILES.forEach(f => {
     /* The canonical <link> declares our own page URL for search engines —
-       it is metadata, not a fetched resource, and points at this site. */
-    const rest = f.text.replace(/<link rel="canonical"[^>]*>/gi, '');
+       it is metadata, not a fetched resource, and points at this site.
+       Likewise href="https://wa.me/…" is a user-clicked WhatsApp deep link
+       (open a chat), never a resource the page loads. */
+    const rest = f.text
+      .replace(/<link rel="canonical"[^>]*>/gi, '')
+      .replace(/href="https:\/\/wa\.me\//gi, 'href="WA-LINK-REMOVED/');
     const m = rest.match(/(src|href)\s*=\s*["']https?:\/\//i);
     assert.ok(!m, f.name + ' references ' + (m && m[0]));
   });

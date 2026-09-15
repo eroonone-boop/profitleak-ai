@@ -43,22 +43,34 @@ const LICENSE_SEED = 'localStorage.setItem("profitleak.license.v1",' +
     returnCostPerSale: 1.5, unitsSold: 10, createdAt: '2026-09-01T00:00:00.000Z' }])) + ');';
 
 function mockStore(product, order, orders) {
-  return (url, opts) => {
+  const manage = [];
+  const orderBodies = [];
+  const f = (url, opts) => {
     const u = String(url);
     const res = (obj) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(obj) });
     if (u.includes('store-data')) {
       if (u.includes('S-TEST1')) return res({ success: true, type: 'store', products: [{ code: 'P-TEST01', name: 'Wireless Earbuds', price: 49.99 }] });
       return res(product);
     }
-    if (u.includes('store-orders')) return res({ success: true, orders: orders !== undefined ? orders : [{ oc: 'O-1', lc: 'P-TEST01', p: 'Wireless Earbuds', name: 'Ali', qty: 2, price: 49.99, at: '2026-09-14T12:00:00.000Z' }] });
+    if (u.includes('store-orders')) return res({ success: true, orders: orders !== undefined ? orders : [{ oc: 'O-1', lc: 'P-TEST01', p: 'Wireless Earbuds', name: 'Ali', qty: 2, price: 49.99, ph: '212611111111', at: '2026-09-14T12:00:00.000Z' }] });
     if (u.includes('store-order')) {
-      let qty = 1, name = '';
-      try { const b = JSON.parse(opts.body); qty = b.qty; name = b.name; } catch (e) {}
+      let qty = 1, name = '', phone = '';
+      try { const b = JSON.parse(opts.body); qty = b.qty; name = b.name; phone = b.phone; } catch (e) {}
+      orderBodies.push({ qty: qty, name: name, phone: phone });
       return res(Object.assign({ success: true, orderCode: 'O-9', wa: '212600000000', product: 'Wireless Earbuds', price: 49.99, qty: qty }, order || {}));
+    }
+    if (u.includes('store-manage')) {
+      let a = null;
+      try { a = JSON.parse(opts.body); } catch (e) {}
+      manage.push(a);
+      return res({ success: true });
     }
     if (u.includes('store-create')) return res({ success: true, code: 'P-TEST01', store: 'S-TEST1' });
     return res({ success: false });
   };
+  f.manage = manage;
+  f.orderBodies = orderBodies;
+  return f;
 }
 
 async function main() {
@@ -87,9 +99,10 @@ async function main() {
 
   /* licensed Pro seller (onboarded — straight to the Orders page) */
   const html = STANDALONE.replace('<head>', '<head><script>' + LICENSE_SEED + '</script>');
+  const sellerFetch = mockStore();
   const dom2 = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true,
     url: 'https://profitleak.example/', virtualConsole: vc,
-    beforeParse(w) { w.fetch = mockStore(); } });
+    beforeParse(w) { w.fetch = sellerFetch; w.confirm = function () { return true; }; } });
   await tick(300);
   const w = dom2.window, d = w.document;
   w.location.hash = '#/orders'; await tick(150);
@@ -120,11 +133,37 @@ async function main() {
     const before = firstProduct.unitsSold || 0;
     assert.equal(p.unitsSold, before + 2); /* the mocked order qty=2 */
   });
-  test('feed shows the sale with buyer, revenue and true profit', () => {
+  test('feed shows the sale with buyer, phone, revenue and true profit', () => {
     const feed = d.getElementById('wa-feed').textContent;
     assert.ok(feed.includes('Ali'));
+    assert.ok(feed.includes('+212611111111'));
+    assert.ok(d.getElementById('wa-feed').querySelector('.wa-phone'));
     assert.ok(feed.includes('$99.98'));
     assert.ok(d.getElementById('wa-feed').querySelector('.table'));
+  });
+  d.querySelector('[data-wa-edit]').click(); await tick(80);
+  test('settings icon opens the order-page editor', () => {
+    assert.ok(d.getElementById('wa-e-name'));
+    assert.ok(d.getElementById('wa-e-price'));
+    assert.equal(d.getElementById('wa-e-price').value, '49.99');
+  });
+  d.getElementById('wa-e-name').value = 'Earbuds Pro v2';
+  d.getElementById('wa-e-price').value = '59.99';
+  d.getElementById('wa-e-save').click(); await tick(250);
+  test('saving the editor updates the server listing and the product', () => {
+    assert.ok(sellerFetch.manage.some(c => c && c.action === 'update' && c.code === 'P-TEST01' && c.name === 'Earbuds Pro v2' && c.price === 59.99));
+    const products = JSON.parse(w.localStorage.getItem('profitleak.products.v1'));
+    const p2 = products.find(x => x.id === firstProduct.id);
+    assert.equal(p2.name, 'Earbuds Pro v2');
+    assert.equal(p2.sellingPrice, 59.99);
+    assert.ok(!d.querySelector('.wa-edit-row'));
+  });
+  d.querySelector('[data-wa-del]').click(); await tick(250);
+  test('delete icon removes the link (server + local)', () => {
+    assert.ok(sellerFetch.manage.some(c => c && c.action === 'delete' && c.code === 'P-TEST01'));
+    const wa = JSON.parse(w.localStorage.getItem('profitleak.wa.v1'));
+    assert.ok(!wa.links || !wa.links[firstProduct.id]);
+    assert.ok(d.querySelector('[data-wa-create]'));
   });
   test('no unexpected page errors in the seller journey', () => {
     if (pageErrors.length) console.error('        page errors: ' + pageErrors.slice(0, 5).join(' | '));
@@ -135,10 +174,11 @@ async function main() {
   console.log('\n\u2500\u2500 2. Public journey (customer side) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
   const opened = [];
+  const pubFetch = mockStore({ success: true, type: 'product', name: 'Wireless Earbuds', price: 49.99, wa: '212600000000' });
   const domP = new JSDOM(STANDALONE, { runScripts: 'dangerously', pretendToBeVisual: true,
     url: 'https://profitleak.example/', virtualConsole: vc,
     beforeParse(w) {
-      w.fetch = mockStore({ success: true, type: 'product', name: 'Wireless Earbuds', price: 49.99, wa: '212600000000' });
+      w.fetch = pubFetch;
       w.open = (url) => { opened.push(String(url)); return null; };
       /* locked free trial: the public page must still work */
       w.localStorage.setItem('profitleak.trial.v1',
@@ -154,8 +194,14 @@ async function main() {
     assert.ok(dP.querySelector('#public-body').textContent.includes('Wireless Earbuds'));
     assert.ok(dP.querySelector('#public-body').textContent.includes('$49.99'));
   });
+  dP.querySelector('#pub-order').click(); await tick(150);
+  test('ordering without a phone number is blocked inline', () => {
+    assert.equal(opened.length, 0);
+    assert.ok(!dP.querySelector('#pub-err').hidden);
+  });
   dP.querySelector('#pub-qty').value = '2';
   dP.querySelector('#pub-name').value = 'Ali';
+  dP.querySelector('#pub-phone').value = '212611111111';
   dP.querySelector('#pub-order').click(); await tick(200);
   test('ordering: WhatsApp opens with a prefilled message + order code', () => {
     assert.equal(opened.length, 1);
@@ -165,6 +211,9 @@ async function main() {
     assert.ok(url.indexOf('Wireless Earbuds') !== -1);
     assert.ok(url.indexOf('$99.98') !== -1);
     assert.ok(url.indexOf('Ali') !== -1);
+    assert.ok(url.indexOf('Buyer WhatsApp: +212611111111') !== -1);
+    assert.equal(pubFetch.orderBodies.length, 1);
+    assert.equal(pubFetch.orderBodies[0].phone, '212611111111');
   });
   test('success state with a manual WhatsApp link appears', () => {
     assert.ok(!dP.querySelector('#pub-done').hidden);
