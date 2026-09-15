@@ -1007,7 +1007,9 @@ test('SECURITY: network calls limited to the two license-verify endpoints (v1.10
       .split("fetch(STORE_DATA_EP").join('STORE-DATA')
       .split("fetch(STORE_ORDER_EP").join('STORE-ORDER')
       .split("fetch(STORE_ORDERS_EP").join('STORE-ORDERS')
-      .split("fetch(STORE_MANAGE_EP").join('STORE-MANAGE');
+      .split("fetch(STORE_MANAGE_EP").join('STORE-MANAGE')
+      .split("fetch(PLANS_EP").join('PLANS')
+      .split("fetch(REDEEM_EP").join('REDEEM');
     ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon'].forEach(pat =>
       assert.equal(rest.indexOf(pat), -1, f.name + ' contains ' + pat));
   });
